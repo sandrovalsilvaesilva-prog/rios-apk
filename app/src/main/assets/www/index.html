@@ -1,0 +1,1089 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retorno Inteligente de OS - V47 Final de Campo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+<script src="./android-bridge.js"></script>
+<style>
+:root{
+ --bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#475569;--line:#e2e8f0;
+ --blue:#2563eb;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--shadow:0 4px 12px rgba(0,0,0,.05)
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif}
+body{background:var(--bg);color:var(--text);padding-bottom:100px}
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;font-weight:bold;display:flex;align-items:center;justify-content:center;font-size:13px}
+h1{font-size:15px;font-weight:700}
+.sub{font-size:11px;color:var(--muted)}
+
+nav{background:#fff;border-bottom:1px solid var(--line);padding:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.tab{border:1px solid #e2e8f0;border-radius:6px;padding:10px 4px;font-size:12px;font-weight:600;background:#f8fafc;color:var(--muted);text-align:center;cursor:pointer}
+.tab.active{background:#eff6ff;color:var(--blue);border-color:#bfdbfe}
+.tab-full{grid-column: span 1;}
+
+main{max-width:650px;margin:auto;padding:10px}
+.screen{display:none}.screen.active{display:block}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+h2{font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.3px}
+
+label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:10px 0 4px}
+input,textarea,select{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font-size:14px;background:#f8fafc;outline:none;color:var(--text)}
+input:focus,textarea:focus,select:focus{border-color:var(--blue);background:#fff}
+textarea{min-height:90px}
+
+.btn{border:0;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;background:#e2e8f0;color:#334155;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer}
+.blue{background:var(--blue);color:#fff}.green{background:var(--green);color:#fff}.red{background:var(--red);color:#fff}
+
+.ficha-tecnica{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.ficha-item{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,.02)}
+.ficha-item.destaque{background:#f8fafc;border-left:4px solid var(--blue)}
+.ficha-item small{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.ficha-item p{font-size:14px;font-weight:600;color:#0f172a;line-height:1.4}
+.ficha-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+.dash-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.dash-card small{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.dash-card strong{font-size:22px;color:#0f172a}
+.activity-list,.os-list{display:flex;flex-direction:column;gap:8px}
+.os-row{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px;text-align:left}
+.os-row.status-concluida{border-left:4px solid var(--green)}
+.os-row.status-arquivada{border-left:4px solid #64748b;background:#f8fafc}
+.os-row.status-pendente,.os-row.status-analise,.os-row.status-recebida{border-left:4px solid var(--amber)}
+.os-row strong{display:block;font-size:13px;color:#0f172a;margin-bottom:3px}
+.os-row span{display:block;font-size:11px;color:var(--muted);line-height:1.35}
+.os-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.os-actions .btn{padding:7px 9px;font-size:11px}
+.group-title{font-size:11px;font-weight:800;color:#334155;text-transform:uppercase;margin:10px 0 2px}
+.status-pill{display:inline-flex;margin-top:6px;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;text-transform:uppercase}
+.empty-state{font-size:12px;color:var(--muted);text-align:center;padding:18px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc}
+
+.pdf-render-container{background:#64748b;padding:8px;border-radius:8px;text-align:center;overflow:hidden;cursor:pointer;position:relative}
+.pdf-render-container:after{content:"Toque para ampliar / girar";position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.6);color:#fff;font-size:10px;padding:4px 8px;border-radius:4px;font-weight:bold}
+canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+
+.modal{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:100;flex-direction:column;align-items:center;justify-content:center;padding:10px}
+.modal-actions{display:flex;gap:10px;margin-bottom:12px;width:100%;max-width:400px}
+.modal-actions .btn{flex:1;padding:12px;font-size:14px}
+.modal-canvas-wrapper{overflow:auto;max-width:100%;max-height:80vh;display:flex;align-items:center;justify-content:center}
+.camera-preview{width:100%;max-width:520px;max-height:70vh;background:#000;border-radius:8px;object-fit:contain}
+
+.photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+.photo{position:relative;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+.photo img{width:100%;height:120px;object-fit:cover}
+.photo button{position:absolute;top:4px;right:4px;border:0;border-radius:4px;background:rgba(239,68,68,0.9);color:#fff;font-weight:bold;padding:3px 6px;font-size:10px}
+.download{display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px;margin-top:10px}
+.fixed{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px;display:flex;gap:8px;z-index:30}.fixed .btn{flex:1;padding:15px;font-size:14px}
+@media(max-width:430px){.ficha-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+ <div class="brand">
+  <div class="logo">OS</div>
+  <div><h1>Retorno Operacional</h1><div class="sub">V47 Final de Campo - relatorio compacto</div></div>
+ </div>
+</header>
+
+<nav>
+ <button class="tab active" id="tabCentral" onclick="show('central')">Central</button>
+ <button class="tab" id="tabInicio" onclick="show('inicio')">OS</button>
+ <button class="tab" id="tabParecer" onclick="show('parecer')">Parecer</button>
+ <button class="tab" id="tabHistorico" onclick="show('historico')">OS Original</button>
+ <button class="tab tab-full" id="tabFotos" onclick="show('fotos')">Fotos</button>
+ <button class="tab tab-full" id="tabExportar" onclick="show('exportar')">Enviar</button>
+</nav>
+
+<main>
+<section id="screenCentral" class="screen active">
+ <div class="card">
+  <h2>Central de Gerenciamento</h2>
+  <div class="dash-grid">
+   <div class="dash-card"><small>Recebidas</small><strong id="dashRecebidas">0</strong></div>
+   <div class="dash-card"><small>Pendentes</small><strong id="dashPendentes">0</strong></div>
+   <div class="dash-card"><small>Em analise</small><strong id="dashAnalise">0</strong></div>
+   <div class="dash-card"><small>Concluidas</small><strong id="dashConcluidas">0</strong></div>
+  </div>
+  <label>Pesquisa rapida</label>
+  <input id="buscaCentral" placeholder="OS, matricula, cliente ou endereco" oninput="renderCentral()">
+  <label>Visualizar</label>
+  <select id="filtroStatusCentral" onchange="renderCentral()">
+   <option value="principal">Pendentes e concluidas</option>
+   <option value="pendencias">Somente pendencias</option>
+   <option value="concluidas">Somente concluidas</option>
+   <option value="arquivadas">Arquivadas</option>
+   <option value="todas">Todas</option>
+  </select>
+ </div>
+ <div class="card">
+  <h2>Servicos importados</h2>
+  <div id="listaCentral" class="os-list"></div>
+ </div>
+ <div class="card">
+  <h2>Ultimas atividades</h2>
+  <div id="atividadesCentral" class="activity-list"></div>
+ </div>
+</section>
+
+<section id="screenInicio" class="screen">
+ <div class="card" style="padding:10px; margin-bottom:10px;">
+  <div style="display:flex; gap:6px; align-items:center;">
+   <button class="btn blue" onclick="document.getElementById('pdfInput').click()" style="padding:9px 12px; font-size:12px;">Importar lote</button>
+   <select id="osSelector" onchange="alternarOS()" style="flex:1; padding:8px 10px; font-size:13px;"><option value="">Fila vazia</option></select>
+   <button class="btn red" onclick="apagarOSAtual()" style="padding:9px 10px; font-size:12px;">Excluir</button>
+   <button class="btn" onclick="novaOS()" style="padding:9px 10px; font-size:12px; background:#64748b; color:#fff;">Limpar</button>
+  </div>
+  <input type="file" id="pdfInput" accept="application/pdf" multiple="multiple" style="display:none">
+  <div id="pdfStatus" class="status" style="margin-top:4px; font-size:10px; color:var(--muted);">Nenhum arquivo carregado.</div>
+ </div>
+
+ <div class="ficha-tecnica">
+  <div class="ficha-item destaque">
+   <small>Endereco de Atendimento</small>
+   <p id="txtEndereco">Aguardando PDF...</p>
+  </div>
+  
+  <div class="ficha-item">
+   <small>Nome do Cliente</small>
+   <p id="txtCliente">-</p>
+  </div>
+  
+  <div class="ficha-row">
+   <div class="ficha-item"><small>Matricula</small><p id="txtMatricula">-</p></div>
+   <div class="ficha-item"><small>Dados identificadores</small><p id="txtIdentificadores">-</p></div>
+  </div>
+  
+  <div class="ficha-item">
+   <small>Tipo de Servico</small>
+   <p id="txtTipoServico">-</p>
+  </div>
+
+  <div class="ficha-item">
+   <small>Status Operacional</small>
+   <select id="statusOS" onchange="salvarDadosEmMemoria();renderCentral();">
+    <option value="recebida">Recebida</option>
+    <option value="pendente">Pendente</option>
+    <option value="analise">Em analise</option>
+    <option value="concluida">Concluida</option>
+    <option value="devolvida">Devolvida</option>
+    <option value="arquivada">Arquivada</option>
+   </select>
+  </div>
+  
+  <div class="ficha-item" style="border-top: 2px solid var(--amber);">
+   <small style="color:var(--amber);">SOLICITACAO / DESCRICAO DA OS</small>
+   <textarea id="txtSolicitacao" style="font-weight:500;color:#334155;min-height:90px;" placeholder="A solicitacao extraida da OS aparecera aqui. Se necessario, ajuste manualmente para esta OS."></textarea>
+  </div>
+ </div>
+</section>
+
+<section id="screenParecer" class="screen">
+ <div class="card">
+  <h2>Parecer Tecnico de Campo</h2>
+  <textarea id="parecer" maxlength="400" placeholder="Digite aqui o resultado da vistoria operacional..."></textarea>
+  <div id="contador" class="status">0 / 400 caracteres</div>
+  <div style="display:flex; gap:6px; margin-top:8px;">
+   <button class="btn" style="flex:1;" onclick="limparAcentos()">Remover Acentos</button>
+   <button class="btn" style="flex:1;" onclick="copiarParecer()">Copiar Texto</button>
+  </div>
+ </div>
+ <div class="card">
+  <h2>Informacoes de Encerramento</h2>
+  <label>Relatorio Adicional / Justificativa</label><textarea id="relatorioTecnico" placeholder="Observacoes extras ou justificativas de campo..."></textarea>
+  <label>Tecnico Responsavel</label><input id="executante" value="SANDROVAL / 44495">
+  <input type="hidden" id="dataExecucao">
+ </div>
+</section>
+
+<section id="screenHistorico" class="screen">
+ <div class="card">
+  <h2>Ordem de Servico Original</h2>
+  <div class="pdf-render-container" onclick="abrirModalHistorico()">
+    <canvas id="pdfCanvasInline"></canvas>
+  </div>
+ </div>
+</section>
+
+<section id="screenFotos" class="screen">
+ <div class="card">
+  <h2>Anexar Evidencias Fotograficas</h2>
+  <div style="display:flex; gap:6px;">
+   <button class="btn blue" style="flex:1;" onclick="abrirCamera()">Camera</button>
+   <button class="btn" style="flex:1;" onclick="document.getElementById('galleryInput').click()">Galeria</button>
+  </div>
+  <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+  <input type="file" id="galleryInput" accept="image/*" multiple style="display:none">
+  <div id="fotoStatus" class="status">0 fotos vinculadas.</div>
+  <div id="photoGrid" class="photo-grid"></div>
+ </div>
+</section>
+
+<section id="screenExportar" class="screen">
+ <div class="card">
+  <h2>Gerar Documento de Retorno</h2>
+  <label>Formato do Nome do Arquivo:</label>
+  <select id="nomePadrao" onchange="atualizarNome()">
+   <option value="os">Apenas o numero da OS</option>
+   <option value="os_cliente">OS + Nome do Cliente</option>
+   <option value="os_matricula">OS + Numero de Matricula</option>
+   <option value="ra_os">RA + OS</option>
+  </select>
+  <label>Nome do Arquivo Gerado:</label><input id="nomeArquivo">
+  <div id="downloadBox" class="download">
+   <div class="ok" style="margin-bottom:6px; color:var(--green); font-weight:bold;">PDF compilado com sucesso!</div>
+   <button class="btn green" onclick="compartilharPDF()" style="width:100%;">Enviar para o WhatsApp</button>
+  </div>
+ </div>
+</section>
+</main>
+
+<div id="cameraModal" class="modal">
+  <div class="modal-actions">
+    <button class="btn green" onclick="capturarFotoCamera()">Capturar</button>
+    <button class="btn red" onclick="fecharCamera()">Fechar</button>
+  </div>
+  <video id="cameraPreview" class="camera-preview" autoplay playsinline muted></video>
+  <canvas id="cameraCanvas" style="display:none"></canvas>
+</div>
+
+<div id="historicoModal" class="modal">
+  <div class="modal-actions">
+    <button class="btn blue" onclick="girarCanvas()">Girar Horizontal</button>
+    <button class="btn red" onclick="fecharModalHistorico()">Fechar</button>
+  </div>
+  <div class="modal-canvas-wrapper">
+    <canvas id="pdfCanvasModal"></canvas>
+  </div>
+</div>
+
+<div class="fixed">
+ <button class="btn blue" onclick="gerarPDF()">Gerar PDF Final</button>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const STORAGE_KEY = "retorno_os_textos_v37_corrigido";
+const STORAGE_KEY_ANTIGO = "retorno_os_textos_v28";
+const DB_NAME = "retorno_inteligente_os_v43";
+const DB_STORE_PDFS = "pdfs_originais";
+let listaOS = []; let indexAtivo = -1; let ultimoBlob=null, ultimoNome="retorno.pdf"; let grausRotacao = 0; let renderToken = 0; let cameraStream = null;
+
+window.onload=async function(){
+ document.getElementById("dataExecucao").value=new Date().toLocaleDateString("pt-BR");
+ document.getElementById("pdfInput").addEventListener("change",carregarPDFs);
+ document.getElementById("cameraInput").addEventListener("change",function(e){addFotos(e.target.files)});
+ document.getElementById("galleryInput").addEventListener("change",function(e){addFotos(e.target.files)});
+ document.getElementById("parecer").addEventListener("input",function(){contador();salvarDadosEmMemoria();});
+ document.getElementById("txtSolicitacao").addEventListener("input",salvarDadosEmMemoria);
+ document.getElementById("relatorioTecnico").addEventListener("input",salvarDadosEmMemoria);
+ let historicoNotasEl = document.getElementById("historicoNotas");
+ if(historicoNotasEl) historicoNotasEl.addEventListener("input",salvarDadosEmMemoria);
+ document.getElementById("executante").addEventListener("input",salvarDadosEmMemoria);
+ document.getElementById("nomePadrao").addEventListener("change",function(){salvarDadosEmMemoria();atualizarNome();});
+ document.getElementById("nomeArquivo").addEventListener("input",salvarDadosEmMemoria);
+ 
+ await carregarGlobal();
+ renderCentral();
+};
+
+function show(name){
+ ["Central","Inicio","Parecer","Historico","Fotos","Exportar"].forEach(function(n){
+   document.getElementById("screen"+n).style.display="none";
+   document.getElementById("tab"+n).classList.remove("active");
+ });
+ const cap=name.charAt(0).toUpperCase()+name.slice(1);
+ document.getElementById("screen"+cap).style.display="block";
+ document.getElementById("tab"+cap).classList.add("active");
+ if(name === 'central') renderCentral();
+ if(name === 'historico' || name === 'inicio') renderizerVisualizadorPDF();
+}
+
+function norm(t){return(t||"").replace(/\s+/g," ").trim()}
+function cap(r,t){let m=t.match(r);return m?(m[1]||"").trim():""}
+function primeiroCampo(t, regexes){
+ for(let r of regexes){
+  let v = cap(r,t);
+  if(v) return v.replace(/\s{2,}/g," ").trim();
+ }
+ return "";
+}
+function criarIdOS(){return "os_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,10)}
+function pdfStorageKey(item){return "pdf_bytes_"+(item && item.id ? item.id : "")}
+function garantirIdentidade(item){
+ if(!item) return null;
+ if(!item.id) item.id = criarIdOS();
+ if(!item.pdfKey) item.pdfKey = pdfStorageKey(item);
+ if(!item.fields) item.fields = {};
+ if(!item.fields.status) item.fields.status = "recebida";
+ if(!item.fields.criadoEm) item.fields.criadoEm = new Date().toLocaleString("pt-BR");
+ if(!Array.isArray(item.historico)) item.historico = [];
+ if(!Array.isArray(item.fotos)) item.fotos = [];
+ return item;
+}
+function statusLabel(status){
+ return ({recebida:"Recebida",pendente:"Pendente",analise:"Em analise",concluida:"Concluida",devolvida:"Devolvida",arquivada:"Arquivada"})[status] || "Recebida";
+}
+function renderCentral(){
+ let buscaEl = document.getElementById("buscaCentral");
+ let busca = (buscaEl ? buscaEl.value : "").toLowerCase().trim();
+ let filtroEl = document.getElementById("filtroStatusCentral");
+ let filtro = filtroEl ? filtroEl.value : "principal";
+ let totais = {recebida:0, pendente:0, analise:0, concluida:0};
+ let lista = document.getElementById("listaCentral");
+ let atividades = document.getElementById("atividadesCentral");
+ if(!lista || !atividades) return;
+ lista.innerHTML = "";
+ atividades.innerHTML = "";
+ listaOS.forEach(item => { garantirIdentidade(item); if(totais[item.fields.status] !== undefined) totais[item.fields.status]++; });
+ document.getElementById("dashRecebidas").textContent = totais.recebida;
+ document.getElementById("dashPendentes").textContent = totais.pendente;
+ document.getElementById("dashAnalise").textContent = totais.analise;
+ document.getElementById("dashConcluidas").textContent = totais.concluida;
+ let filtrada = listaOS.filter(item => {
+  let f = item.fields || {};
+  let texto = [f.osNumero,f.raNumero,f.matricula,f.cliente,f.endereco,f.solicitacao,f.status].join(" ").toLowerCase();
+  let passaBusca = !busca || texto.includes(busca);
+  let passaStatus = filtro === "todas" ||
+   (filtro === "principal" && f.status !== "arquivada") ||
+   (filtro === "pendencias" && !["concluida","arquivada"].includes(f.status)) ||
+   (filtro === "concluidas" && f.status === "concluida") ||
+   (filtro === "arquivadas" && f.status === "arquivada");
+  return passaBusca && passaStatus;
+ });
+ if(!filtrada.length){
+  lista.innerHTML = '<div class="empty-state">Nenhuma OS encontrada.</div>';
+ } else {
+  filtrada.forEach((item, idx) => {
+   let f = item.fields || {}, originalIndex = listaOS.findIndex(os => os.id === item.id);
+   let row = document.createElement("div");
+   row.className = "os-row status-" + (f.status || "recebida");
+   row.innerHTML = `<strong>${idx + 1}. OS ${f.osNumero || "S/N"} - ${f.cliente || "Cliente nao informado"}</strong><span>Matricula: ${f.matricula || "-"} | RA: ${f.raNumero || "-"}</span><span>${f.endereco || "Endereco nao informado"}</span><span class="status-pill">${statusLabel(f.status)}</span>`;
+   let actions = document.createElement("div");
+   actions.className = "os-actions";
+   actions.innerHTML = `<button class="btn blue" onclick="abrirOSDaCentral(${originalIndex})">Abrir</button>${f.status !== "concluida" && f.status !== "arquivada" ? `<button class="btn green" onclick="marcarStatusOS('${item.id}','concluida')">Concluir OS</button>` : ""}${f.status !== "arquivada" ? `<button class="btn" onclick="marcarStatusOS('${item.id}','arquivada')">Arquivar</button>` : ""}`;
+   row.appendChild(actions);
+   lista.appendChild(row);
+  });
+ }
+ let ultimas = listaOS.slice().reverse().slice(0,5);
+ if(!ultimas.length) atividades.innerHTML = '<div class="empty-state">Nenhuma atividade registrada.</div>';
+ ultimas.forEach(item => {
+  let f = item.fields || {}, d = document.createElement("div");
+  d.className = "os-row";
+  d.innerHTML = `<strong>${statusLabel(f.status)} - OS ${f.osNumero || "S/N"}</strong><span>${f.cliente || "Cliente nao informado"} | ${f.criadoEm || ""}</span>`;
+  atividades.appendChild(d);
+ });
+}
+function marcarStatusOS(id, status){
+ let idx = listaOS.findIndex(item => item.id === id);
+ if(idx < 0) return;
+ let item = garantirIdentidade(listaOS[idx]);
+ if(status === "arquivada" && item.fields.status !== "concluida"){
+  if(!confirm("Deseja arquivar esta OS mesmo sem marcar como concluida?")) return;
+ }
+ item.fields.status = status;
+ if(indexAtivo === idx){
+  let statusEl = document.getElementById("statusOS");
+  if(statusEl) statusEl.value = status;
+ }
+ salvarSilencioso();
+ renderCentral();
+}
+function abrirOSDaCentral(idx){
+ if(idx < 0 || !listaOS[idx]) return;
+ salvarDadosEmMemoria();
+ indexAtivo = idx;
+ atualizarSelector();
+ carregarDadosDaMemoriaParaTela();
+ show("inicio");
+}
+function bytesParaDataUrl(bytes){
+ let arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+ let binary = "", chunk = 8192;
+ for(let i=0; i<arr.length; i+=chunk) binary += String.fromCharCode.apply(null, arr.subarray(i, i + chunk));
+ return "data:application/pdf;base64," + btoa(binary);
+}
+function abrirBancoLocal(){
+ return new Promise((resolve,reject)=>{
+  if(!window.indexedDB){ reject(new Error("IndexedDB indisponivel")); return; }
+  let req = indexedDB.open(DB_NAME, 1);
+  req.onupgradeneeded = ev => {
+   let db = ev.target.result;
+   if(!db.objectStoreNames.contains(DB_STORE_PDFS)) db.createObjectStore(DB_STORE_PDFS);
+  };
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+ });
+}
+async function idbPut(storeName, key, value){
+ try{
+  let db = await abrirBancoLocal();
+  await new Promise((resolve,reject)=>{
+   let tx = db.transaction(storeName, "readwrite");
+   tx.objectStore(storeName).put(value, key);
+   tx.oncomplete = resolve;
+   tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+  return true;
+ }catch(e){ return false; }
+}
+async function idbGet(storeName, key){
+ try{
+  let db = await abrirBancoLocal();
+  let value = await new Promise((resolve,reject)=>{
+   let tx = db.transaction(storeName, "readonly");
+   let req = tx.objectStore(storeName).get(key);
+   req.onsuccess = () => resolve(req.result || null);
+   req.onerror = () => reject(req.error);
+  });
+  db.close();
+  return value;
+ }catch(e){ return null; }
+}
+async function idbDelete(storeName, key){
+ try{
+  let db = await abrirBancoLocal();
+  await new Promise((resolve,reject)=>{
+   let tx = db.transaction(storeName, "readwrite");
+   tx.objectStore(storeName).delete(key);
+   tx.oncomplete = resolve;
+   tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+ }catch(e){}
+}
+async function salvarPdfOriginalPersistente(item){
+ garantirIdentidade(item);
+ if(!item.pdfBytes || !item.pdfBytes.length) return;
+ await idbPut(DB_STORE_PDFS, item.pdfKey, new Uint8Array(item.pdfBytes));
+}
+async function recuperarPdfOriginalPersistente(item){
+ garantirIdentidade(item);
+ let bytes = await idbGet(DB_STORE_PDFS, item.pdfKey);
+ if(bytes){
+  item.pdfBytes = Array.from(new Uint8Array(bytes));
+  return true;
+ }
+ return false;
+}
+function limparCanvasPdf(id){
+ let canvas = document.getElementById(id);
+ if(!canvas) return;
+ canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+ canvas.removeAttribute("width");
+ canvas.removeAttribute("height");
+}
+function limparTextoSolicitacao(trecho){
+ trecho = String(trecho || "").replace(/\s{2,}/g, " ").trim();
+ trecho = trecho
+  .replace(/^.*?(ASS\.\/MATR[IÍ]CULA\s+DO\s+ANALISTA)\s*/i, "")
+  .replace(/^.*?(PARECER\s+FINAL\s+DO\s+ANALISTA\/PROVID[EÊ]NCIAS\s*:)\s*/i, "")
+  .replace(/^.*?(PARECER\s+FINAL\s+DO\s+ANALISTA\/PROVID[ÃŠE]NCIAS\s*:)/i, "")
+  .replace(/^.*?(ASS\.\/MATR[ÃI]CULA\s+DO\s+ANALISTA)\s*/i, "")
+  .replace(/^(FINAL\s+EM\s+CAMPO|EXECUTANTES|CLIENTE|ARQUIVAR\s+EM|ASS\.\/MATR[ÃI]CULA)\s*:?\s*/i, "")
+  .replace(/^.*?\bANALISTA\s*/i, "")
+  .replace(/^.*?\b(verificar|vistoriar|efetuar|realizar|confirmar|analisar|regularizar|substituir|religar|suspender)\b/i, "$1")
+  .replace(/C\s*O\s*N\s*C\s*L\s*U\s*S\s*[ÃƒAÃ•O]\s*O\s+D\s*O\s*S\s*E\s*R\s*V\s*I\s*[Ã‡C]\s*O\s*-\s*S\s*A\s*L\s*A/ig, "")
+  .replace(/C\s*O\s*N\s*C\s*L\s*U\s*S\s*[ÃƒAÃ•O]\s*O\s+D\s*O\s*S\s*E\s*R\s*V\s*I\s*[Ã‡C]\s*O\s*-\s*C\s*A\s*M\s*P\s*O/ig, "")
+  .replace(/C\s*O\s*N\s*C\s*L\s*U\s*S\s*[AÃÕO]\s*O\s+D\s*O\s*S\s*E\s*R\s*V\s*I\s*[ÇC]\s*O\s*-\s*S\s*A\s*L\s*A/ig, "")
+  .replace(/EXECUTANTES\s*:?\s*/ig, "")
+  .replace(/CLIENTE\s*/ig, "")
+  .replace(/PARECER\s+FINAL\s+DO\s+ANALISTA\/PROVID[ÃŠE]NCIAS\s*:/ig, "")
+  .replace(/PARECER\s+FINAL\s+DO\s+ANALISTA\/PROVID[EÊ]NCIAS\s*:/ig, "")
+  .replace(/ARQUIVAR\s+EM\s*:/ig, "")
+  .replace(/ASS\.\/MATR[ÃI]CULA(?:\s+DO\s+ANALISTA)?/ig, "")
+  .replace(/ASS\.\/MATR[IÍ]CULA(?:\s+DO\s+ANALISTA)?/ig, "")
+  .replace(/\b(?:0[1-9]|1[0-2])\/20\d{2}(?:\s+(?:0[1-9]|1[0-2])\/20\d{2})*.*$/i, "")
+  .replace(/\s{2,}/g, " ")
+  .trim();
+ return trecho;
+}
+function extrairObsAposTipoServico(t){
+ let tipo = /Tipo\s+de\s+Servi\S*o\s*:?\s*/i.exec(t);
+ if(!tipo) return "";
+ let aposTipo = t.slice(tipo.index + tipo[0].length);
+ let limiteAntesFormulario = /(C\s*R\s*O\s*Q\s*U\s*I|CROQUI|H\s*I\s*D\s*R|HIDR[Ã”OÃƒÃ•]METRO|U\s*T\s*I\s*L\s*I\s*Z|UTILIZA[CÃ‡][AÃƒ]O|CONCLUS[AÃƒ]O\s+DO\s+SERVI[CÃ‡]O|HIST[Ã“OÃƒ]RICO|AN[ÃAÃƒ]LISE|LEIT\.\s*ATUAL|DATA\s+CONSUMO\s+LEITURA)/i.exec(aposTipo);
+ let areaTipo = limiteAntesFormulario ? aposTipo.slice(0, limiteAntesFormulario.index) : aposTipo.slice(0, 1200);
+ let obs = /\bOBS\.?\s*:?\s*/i.exec(areaTipo);
+ if(!obs) return "";
+ let trecho = areaTipo.slice(obs.index + obs[0].length);
+ let marcadoresFim = [
+  /\s+Hist[oÃƒÂ³Ã³]rico\b/i, /\s+An[aÃƒÂ¡Ã¡]lise\b/i, /\s+CROQUI\b/i, /\s+MATERIAL\b/i,
+  /\s+IM[OÃƒâ€œÃ“]VEL\b/i, /\s+Emitido\b/i, /\s+CPF\/CNPJ\b/i, /\s+Inscri[cÃƒÂ§Ã§][aÃƒÂ£Ã£]o\b/i,
+  /\s+End\.?\/Fone\b/i, /\s+Pt\s*Refer/i, /\s+C\s*R\s*O\s*Q\s*U\s*I\b/i,
+  /\s+H\s*I\s*D\s*R/i, /\s+U\s*T\s*I\s*L\s*I\s*Z/i, /\s+CONCLUS[AÃƒ]O\s+DO\s+SERVI[CÃ‡]O/i,
+  /\s+LEIT\.\s*ATUAL/i, /\s+\d{2}\/\d{2}\/20\d{2}\b/i
+ ];
+ let fim = trecho.length;
+ for(let rx of marcadoresFim){
+  let f = rx.exec(trecho);
+  if(f && f.index > 8 && f.index < fim) fim = f.index;
+ }
+ trecho = limparTextoSolicitacao(trecho.slice(0, fim));
+ if(/(LEIT\.\s*ATUAL|H\s*I\s*D\s*R|HIDR[Ã”OÃƒÃ•]METRO|U\s*T\s*I\s*L\s*I\s*Z|CONCLUS[AÃƒ]O\s+DO\s+SERVI[CÃ‡]O)/i.test(trecho)) return "";
+ return trecho.length > 3 ? trecho : "";
+}
+function extrairSolicitacao(t){
+ let obsAposTipo = extrairObsAposTipoServico(t);
+ if(obsAposTipo) return obsAposTipo;
+ let marcadoresInicio = [
+  /Descri[cÃ§][aÃ£]o\s*da\s*OS\s*:?\s*/i, /Solicita[cÃ§][aÃ£]o\s*:?\s*/i,
+  /Observa[cÃ§][aÃ£]o(?:es|Ãµes)?\s*:?\s*/i, /\bOBS\.?\s*:?\s*/i, /\bParecer\s*:?\s*/i
+ ];
+ let marcadoresFim = [
+  /\s+Hist[oÃ³]rico\b/i, /\s+An[aÃ¡]lise\b/i, /\s+Inscri[cÃ§][aÃ£]o\b/i, /\s+Emitido\b/i,
+  /\s+CPF\/CNPJ\b/i, /\s+CROQUI\b/i, /\s+MATERIAL\b/i, /\s+IM[OÃ“]VEL\b/i, /\s+Pt\s*Refer/i,
+  /\s+\d{2}\/\d{2}\/20\d{2}\b/i
+ ];
+ for(let inicio of marcadoresInicio){
+  let m = inicio.exec(t);
+  if(!m) continue;
+  let trecho = t.slice(m.index + m[0].length);
+  let fim = trecho.length;
+  for(let rx of marcadoresFim){
+   let f = rx.exec(trecho);
+   if(f && f.index > 8 && f.index < fim) fim = f.index;
+  }
+  trecho = limparTextoSolicitacao(trecho.slice(0, fim));
+  if(/(LEIT\.\s*ATUAL|H\s*I\s*D\s*R|HIDR[Ã”OÃƒÃ•]METRO|U\s*T\s*I\s*L\s*I\s*Z|CONCLUS[AÃƒ]O\s+DO\s+SERVI[CÃ‡]O|QT\.\s*PTS|DESCARGA|PISCINA|JARDIM)/i.test(trecho)) continue;
+  if(trecho.length > 8) return trecho;
+ }
+ return "";
+}
+
+async function carregarPDFs(e) {
+ let arquivos = e.target.files; if(!arquivos.length) return;
+ document.getElementById("pdfStatus").innerHTML=`Processando lote com ${arquivos.length} arquivo(s)...`;
+ let inicioIndex = listaOS.length;
+ let fila = Array.from(arquivos);
+ for(let pos=0; pos<fila.length; pos++) {
+  let f = fila[pos];
+  document.getElementById("pdfStatus").innerHTML=`Processando ${pos + 1} de ${fila.length}: ${f.name}`;
+  try {
+   let bytes = await f.arrayBuffer();
+   let pdf = await pdfjsLib.getDocument({data: bytes.slice(0)}).promise, txt="";
+   for(let i=1; i<=pdf.numPages; i++){
+    let p = await pdf.getPage(i), c = await p.getTextContent();
+    txt += c.items.map(it=>it.str).join(" ")+"\n";
+   }
+   let itemExtraido = extrairDados(norm(txt), bytes, f.name, inicioIndex + pos);
+   listaOS.push(itemExtraido);
+   salvarPdfOriginalPersistente(itemExtraido);
+  } catch(err) { console.error(err); }
+ }
+ indexAtivo = listaOS.length > inicioIndex ? inicioIndex : (listaOS.length - 1);
+ atualizarSelector(); carregarDadosDaMemoriaParaTela();
+ let importadas = listaOS.length - inicioIndex;
+ document.getElementById("pdfStatus").innerHTML=`<span style="color:var(--green); font-weight:600;">${importadas} OS importada(s) neste lote. Total: ${listaOS.length}.</span>`;
+ salvarSilencioso();
+ renderCentral();
+ e.target.value = "";
+}
+
+function extrairDados(t, bytes, nomeArquivo, ordem) {
+ let ra=primeiroCampo(t,[/RA\s*N[ÂººO]?:?\s*([0-9]+)/i, /\bRA[:\s]+([0-9]{4,})/i]);
+ let os=primeiroCampo(t,[/RA\s*N[ÂººO]?:?\s*[0-9]+.*?\bN[ÂººO]?:?\s*([0-9]+)/i, /\bOS[:\s]+([0-9]+)/i, /Ordem\s+de\s+Servi\S*o\s*:?\s*([0-9]+)/i]);
+ let mat=primeiroCampo(t,[/Matr[Ã­iíi]cula:?\s*([0-9]+)/i, /\bMat\.?:?\s*([0-9]+)/i, /\bLigacao:?\s*([0-9]+)/i, /\bUC:?\s*([0-9]+)/i]);
+ let cli=primeiroCampo(t,[/Nome:?\s*(.*?)\s+Inscri[cÃ§ç][aÃ£ã]o/i, /Cliente:?\s*(.*?)\s+(?:End|Endere|Matr|CPF|CNPJ|Tipo\s+de\s+Servi)/i, /Nome\s+do\s+Cliente:?\s*(.*?)\s+(?:End|Endere|Matr|CPF|CNPJ)/i]);
+ let end=primeiroCampo(t,[/End\.?\/Fone:?\s*(.*?)\s+Pt\s*Refer/i, /Endere[cÃ§ç]o:?\s*(.*?)\s+(?:Pt\s*Refer|Ponto\s+de\s+Refer|Bairro|Nome|Cliente|Tipo\s+de\s+Servi)/i, /End\.?:?\s*(.*?)\s+(?:Pt\s*Refer|Ponto\s+de\s+Refer|Bairro|Nome|Cliente)/i]);
+ let tipo=primeiroCampo(t,[/Tipo de Servi[cÃ§ç]o:?\s*([0-9]+\s*-\s*.*?)(?:\s+IM[Ã“ÓO]VEL|\s+MATERIAL|\s+OBS\.|\s+CROQUI)/i, /Servi[cÃ§ç]o:?\s*([0-9]+\s*-\s*.*?)(?:\s+IM[Ã“ÓO]VEL|\s+MATERIAL|\s+OBS\.|\s+CROQUI|\s+End)/i, /Tipo:?\s*([0-9]+\s*-\s*.*?)(?:\s+OBS\.|\s+CROQUI|\s+MATERIAL)/i]);
+ let obs=extrairSolicitacao(t) || cap(/Descri[cÃ§][aÃ£]o\s*da\s*OS:\s*(.*?)(?:\s*Hist[Ã³o]rico|\s*Inscri[cÃ§][aÃ£]o|\s*Emitido)/i, t);
+ if(!obs) obs=cap(/OS:\s*(.*?)(?:\s+0[1-9]\/20|\s+1[0-2]\/20|\s+A\s*N\s*[ÃA]\s*L\s*I\s*S\s*E|\s+AN[ÃA]LISE|\s+CPF\/CNPJ|\s+Emitido)/i,t);
+
+ let id = criarIdOS();
+ return {
+  id: id,
+  pdfKey: "pdf_bytes_" + id,
+  nomeArquivoOriginal: nomeArquivo || "",
+  ordemImportacao: ordem || 0,
+  pdfBytes: Array.from(new Uint8Array(bytes)),
+  fields: {
+   osNumero: os, raNumero: ra, matricula: mat, cliente: cli, tipoServico: tipo,
+   endereco: end, solicitacao: obs || "Verificar instrucoes no corpo da OS original.",
+   dataExecucao: new Date().toLocaleDateString("pt-BR"), criadoEm: new Date().toLocaleString("pt-BR"), status: "recebida", parecer: "", relatorioTecnico: "", historicoNotas: "",
+   executante: "SANDROVAL / 44495", nomePadrao: "os", nomeArquivo: ""
+  },
+  fotos: []
+ };
+}
+
+async function renderizerVisualizadorPDF() {
+  if (indexAtivo < 0 || !listaOS[indexAtivo]) return;
+  let item = garantirIdentidade(listaOS[indexAtivo]);
+  let token = ++renderToken;
+  let bytes = currentItemPdfBytes(item);
+  if (!bytes) { limparCanvasPdf("pdfCanvasInline"); return; }
+
+  try {
+    let loadingTask = pdfjsLib.getDocument({data: bytes});
+    let pdf = await loadingTask.promise;
+    let page = await pdf.getPage(1);
+    if(token !== renderToken || !listaOS[indexAtivo] || listaOS[indexAtivo].id !== item.id) return;
+    
+    let canvasInline = document.getElementById('pdfCanvasInline');
+    if(!canvasInline) return;
+    let contextInline = canvasInline.getContext('2d');
+    let viewportInline = page.getViewport({scale: 1.2});
+    canvasInline.height = viewportInline.height;
+    canvasInline.width = viewportInline.width;
+
+    await page.render({canvasContext: contextInline, viewport: viewportInline}).promise;
+  } catch (e) { console.error(e); }
+}
+
+async function abrirModalHistorico() {
+  if (indexAtivo < 0 || !listaOS[indexAtivo]) return;
+  document.getElementById('historicoModal').style.display = 'flex';
+  grausRotacao = 0;
+  document.getElementById('pdfCanvasModal').style.transform = "none";
+
+  let item = garantirIdentidade(listaOS[indexAtivo]);
+  let token = ++renderToken;
+  let bytes = currentItemPdfBytes(item);
+  if (!bytes) { limparCanvasPdf("pdfCanvasModal"); return; }
+  try {
+    let pdf = await pdfjsLib.getDocument({data: bytes}).promise;
+    let page = await pdf.getPage(1);
+    if(token !== renderToken || !listaOS[indexAtivo] || listaOS[indexAtivo].id !== item.id) return;
+    
+    let canvasModal = document.getElementById('pdfCanvasModal');
+    let contextModal = canvasModal.getContext('2d');
+    let viewportModal = page.getViewport({scale: 2.0});
+    canvasModal.height = viewportModal.height;
+    canvasModal.width = viewportModal.width;
+
+    await page.render({canvasContext: contextModal, viewport: viewportModal}).promise;
+  } catch(e){}
+}
+
+function girarCanvas() {
+  grausRotacao = (grausRotacao + 90) % 360;
+  let canvas = document.getElementById('pdfCanvasModal');
+  if(grausRotacao === 90) canvas.style.transform = "rotate(90deg) scale(0.8)";
+  else if(grausRotacao === 180) canvas.style.transform = "rotate(180deg)";
+  else if(grausRotacao === 270) canvas.style.transform = "rotate(270deg) scale(0.8)";
+  else canvas.style.transform = "none";
+}
+
+function fecharModalHistorico() { document.getElementById('historicoModal').style.display = 'none'; }
+
+function atualizarSelector(){
+ let sel = document.getElementById("osSelector"); sel.innerHTML = "";
+ if(!listaOS.length){ sel.innerHTML = '<option value="">Fila vazia</option>'; return; }
+ listaOS.forEach((item, idx)=>{
+  garantirIdentidade(item);
+  let opt = document.createElement("option"); opt.value = item.id;
+  opt.textContent = `${idx + 1}. OS ${item.fields.osNumero || "S/N"} - ${(item.fields.cliente || "").substring(0,14)}`;
+  if(idx === indexAtivo) opt.selected = true;
+  sel.appendChild(opt);
+ });
+}
+
+function alternarOS(){ 
+  salvarDadosEmMemoria(); 
+  let id = document.getElementById("osSelector").value;
+  let novoIndex = listaOS.findIndex(item => item.id === id);
+  indexAtivo = novoIndex >= 0 ? novoIndex : -1;
+  carregarDadosDaMemoriaParaTela(); 
+}
+
+function apagarOSAtual(){
+ if(indexAtivo < 0 || !listaOS[indexAtivo]) return;
+ if(!confirm("Remover esta OS definitivamente?")) return;
+ 
+ let removida = garantirIdentidade(listaOS[indexAtivo]);
+ localStorage.removeItem(removida.pdfKey);
+ 
+ listaOS.splice(indexAtivo, 1);
+ indexAtivo = listaOS.length > 0 ? 0 : -1;
+ atualizarSelector(); carregarDadosDaMemoriaParaTela();
+ salvarSilencioso();
+ renderCentral();
+}
+
+function limparCamposTela(){
+ document.getElementById("txtEndereco").textContent = "Aguardando PDF...";
+ document.getElementById("txtCliente").textContent = "-";
+ document.getElementById("txtMatricula").textContent = "-";
+ document.getElementById("txtIdentificadores").textContent = "-";
+ document.getElementById("txtTipoServico").textContent = "-";
+ document.getElementById("txtSolicitacao").value = "";
+ let canvas = document.getElementById('pdfCanvasInline'); if(canvas) canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+ document.getElementById("parecer").value = "";
+ document.getElementById("relatorioTecnico").value = "";
+ let historicoNotasLimpar = document.getElementById("historicoNotas");
+ if(historicoNotasLimpar) historicoNotasLimpar.value = "";
+ document.getElementById("nomeArquivo").value = "";
+ document.getElementById("statusOS").value = "recebida";
+ document.getElementById("downloadBox").style.display="none";
+}
+
+function salvarDadosEmMemoria(){
+ if(indexAtivo < 0 || !listaOS[indexAtivo]) return;
+ let item = garantirIdentidade(listaOS[indexAtivo]);
+ item.fields.solicitacao = document.getElementById("txtSolicitacao").value;
+ item.fields.parecer = document.getElementById("parecer").value;
+ item.fields.relatorioTecnico = document.getElementById("relatorioTecnico").value;
+ let historicoNotasSalvar = document.getElementById("historicoNotas");
+ item.fields.historicoNotas = historicoNotasSalvar ? historicoNotasSalvar.value : (item.fields.historicoNotas || "");
+ item.fields.executante = document.getElementById("executante").value;
+ item.fields.status = document.getElementById("statusOS").value || "recebida";
+ item.fields.nomePadrao = document.getElementById("nomePadrao").value;
+ item.fields.nomeArquivo = document.getElementById("nomeArquivo").value;
+ salvarSilencioso();
+}
+
+function carregarDadosDaMemoriaParaTela(){
+ if(indexAtivo < 0 || !listaOS[indexAtivo]) { limparCamposTela(); return; }
+ let item = garantirIdentidade(listaOS[indexAtivo]);
+ 
+ document.getElementById("txtEndereco").textContent = item.fields.endereco || "Nao informado";
+ document.getElementById("txtCliente").textContent = item.fields.cliente || "Nao informado";
+ document.getElementById("txtMatricula").textContent = item.fields.matricula || "-";
+ document.getElementById("txtIdentificadores").textContent = `OS: ${item.fields.osNumero || "-"} | RA: ${item.fields.raNumero || "-"}`;
+ document.getElementById("txtTipoServico").textContent = item.fields.tipoServico || "-";
+ document.getElementById("txtSolicitacao").value = item.fields.solicitacao || "";
+ 
+ document.getElementById("parecer").value = item.fields.parecer || "";
+ document.getElementById("relatorioTecnico").value = item.fields.relatorioTecnico || "";
+ let historicoNotasTela = document.getElementById("historicoNotas");
+ if(historicoNotasTela) historicoNotasTela.value = item.fields.historicoNotas || "";
+ document.getElementById("executante").value = item.fields.executante || "SANDROVAL / 44495";
+ document.getElementById("statusOS").value = item.fields.status || "recebida";
+ document.getElementById("nomePadrao").value = item.fields.nomePadrao || "os";
+ 
+ renderFotos(); contador(); atualizarNome();
+ renderVisualizadorForcado();
+}
+
+function renderVisualizadorForcado(){
+  setTimeout(() => { renderizerVisualizadorPDF(); }, 150);
+}
+
+function contador(){document.getElementById("contador").innerHTML=`${document.getElementById("parecer").value.length} / 400 caracteres`}
+function limparAcentos(){document.getElementById("parecer").value=(document.getElementById("parecer").value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");contador();salvarDadosEmMemoria()}
+async function copiarParecer(){try{await navigator.clipboard.writeText(document.getElementById("parecer").value);alert("Copiado!")}catch(e){}}
+
+async function abrirCamera(){
+ if(indexAtivo < 0) { alert("Carregue uma OS primeiro."); return; }
+ if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+  document.getElementById('cameraInput').click();
+  return;
+ }
+ try{
+  fecharCamera();
+  cameraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}, audio:false});
+  let video = document.getElementById("cameraPreview");
+  video.srcObject = cameraStream;
+  document.getElementById("cameraModal").style.display = "flex";
+ }catch(e){
+  document.getElementById("fotoStatus").textContent = "Abrindo camera/seletor do aparelho...";
+  document.getElementById('cameraInput').click();
+ }
+}
+
+function fecharCamera(){
+ if(cameraStream){
+  cameraStream.getTracks().forEach(track => track.stop());
+  cameraStream = null;
+ }
+ let video = document.getElementById("cameraPreview");
+ if(video) video.srcObject = null;
+ let modal = document.getElementById("cameraModal");
+ if(modal) modal.style.display = "none";
+}
+
+function capturarFotoCamera(){
+ if(indexAtivo < 0 || !listaOS[indexAtivo]) { fecharCamera(); return; }
+ let video = document.getElementById("cameraPreview");
+ if(!video || !video.videoWidth) return;
+ let canvas = document.getElementById("cameraCanvas");
+ canvas.width = video.videoWidth;
+ canvas.height = video.videoHeight;
+ canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+ let itemAlvo = garantirIdentidade(listaOS[indexAtivo]);
+ itemAlvo.fotos.push({name:"camera_"+new Date().toISOString().replace(/[:.]/g,"-")+".jpg", dataUrl:canvas.toDataURL("image/jpeg", 0.88)});
+ renderFotos();
+ salvarSilencioso();
+ fecharCamera();
+}
+
+function addFotos(files){
+ if(indexAtivo < 0) { alert("Carregue uma OS primeiro."); return; }
+ let itemAlvo = garantirIdentidade(listaOS[indexAtivo]);
+ Array.from(files||[]).forEach(file=>{
+  let r=new FileReader();
+  r.onload=e=>{
+   itemAlvo.fotos.push({name:file.name,dataUrl:e.target.result});
+   if(listaOS[indexAtivo] && listaOS[indexAtivo].id === itemAlvo.id) renderFotos();
+   salvarSilencioso();
+  };
+  r.readAsDataURL(file);
+ });
+}
+function renderFotos(){
+ document.getElementById("photoGrid").innerHTML="";
+ if(indexAtivo < 0 || !listaOS[indexAtivo]) {
+  document.getElementById("fotoStatus").textContent="0 fotos vinculadas.";
+  return;
+ }
+ (listaOS[indexAtivo].fotos || []).forEach((f,i)=>{
+  let d=document.createElement("div"); d.className="photo";
+  d.innerHTML=`<img src="${f.dataUrl}"><button onclick="remFoto(${i})">X</button>`;
+  document.getElementById("photoGrid").appendChild(d);
+ });
+ document.getElementById("fotoStatus").textContent=`${(listaOS[indexAtivo].fotos || []).length} foto(s) anexada(s).`;
+}
+function remFoto(i){ if(indexAtivo >= 0) { listaOS[indexAtivo].fotos.splice(i,1); renderFotos(); salvarSilencioso(); } }
+
+function clean(v){return(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/_+/g,"_").substring(0,50)}
+function atualizarNome(){
+ if(indexAtivo<0)return;
+ let item = listaOS[indexAtivo];
+ let os=clean(item.fields.osNumero)||"SEM_OS", mat=clean(item.fields.matricula)||"SEM_MAT", cli=clean((item.fields.cliente||"").split(" ")[0])||"CLI", p=document.getElementById("nomePadrao").value, n="OS_"+os;
+ if(p==="os_cliente")n=`OS_${os}_${cli}`; if(p==="os_matricula")n=`OS_${os}_MAT_${mat}`; if(p==="ra_os")n=`RA_${clean(item.fields.raNumero)}_OS_${os}`;
+ document.getElementById("nomeArquivo").value=n+".pdf";
+}
+
+async function gerarPDF(){
+ if(indexAtivo < 0 || !listaOS[indexAtivo]){alert("Escolha uma OS ativa.");return}
+ salvarDadosEmMemoria();
+ try{
+  const{PDFDocument,StandardFonts}=PDFLib;
+  let current = garantirIdentidade(listaOS[indexAtivo]);
+  let out=await PDFDocument.create(), bytesOrig=currentItemPdfBytes(current);
+  
+  if(!bytesOrig || bytesOrig.length <= 10){
+   alert("O PDF original desta OS nao foi encontrado. Reimporte a OS antes de gerar o documento final.");
+   return;
+  }
+  
+  let orig=await PDFDocument.load(bytesOrig);
+  let pages=await out.copyPages(orig,orig.getPageIndices());
+  pages.forEach(p=>out.addPage(p));
+
+  let font=await out.embedFont(StandardFonts.Helvetica), bold=await out.embedFont(StandardFonts.HelveticaBold);
+  await addRelatorioCompacto(out, font, bold, current);
+  
+  let bytes=await out.save(); ultimoBlob=new Blob([bytes],{type:"application/pdf"}); ultimoNome=document.getElementById("nomeArquivo").value||"retorno.pdf";
+  current.fields.status = "concluida";
+  document.getElementById("statusOS").value = "concluida";
+  salvarSilencioso();
+  renderCentral();
+  document.getElementById("downloadBox").style.display="block";
+  show('exportar');
+  compartilharPDF();
+ }catch(e){console.error(e); alert("Erro ao gerar PDF.")}
+}
+
+function currentItemPdfBytes(item) {
+  if(!garantirIdentidade(item)) return null;
+  if (item.pdfBytes && item.pdfBytes.length > 0) return new Uint8Array(item.pdfBytes);
+  let raw = recuperarPdfOriginal(item);
+  if (raw) return raw;
+  return null;
+}
+
+function recuperarPdfOriginal(item) {
+  let raw = localStorage.getItem(item.pdfKey);
+  if(!raw && item.fields && item.fields.osNumero) {
+    let legado = localStorage.getItem("pdf_bytes_" + item.fields.osNumero);
+    if(legado) {
+      raw = legado;
+      try { localStorage.setItem(item.pdfKey, legado); } catch(e) {}
+    }
+  }
+  if(!raw) return null;
+  let bytes = dataBytes(raw);
+  item.pdfBytes = Array.from(bytes);
+  salvarPdfOriginalPersistente(item);
+  return bytes;
+}
+
+function draw(page,t,x,y,s=8,font){page.drawText(String(t||"-"),{x,y,size:s,font})}
+function wrap(text,max){let words=String(text||"").split(" "),lines=[],line="";for(let w of words){if((line+" "+w).length>max){lines.push(line);line=w}else line=(line+" "+w).trim()}if(line)lines.push(line);return lines}
+
+function drawWrap(page,text,x,y,max,size,font){
+  let lines = wrap(text,max);
+  lines.forEach(function(ln){
+    draw(page,ln,x,y,size,font);
+    y -= (size + 5); 
+  });
+  return y;
+}
+
+async function embedFoto(pdf, foto){
+ let bytes = dataBytes(foto.dataUrl);
+ return foto.dataUrl.includes("image/png") ? pdf.embedPng(bytes) : pdf.embedJpg(bytes);
+}
+
+async function desenharFotoAjustada(pdf, page, foto, slot) {
+ const {rgb} = PDFLib;
+ let img = await embedFoto(pdf, foto);
+ let sc = Math.min(slot.w / img.width, slot.h / img.height);
+ let dw = img.width * sc, dh = img.height * sc;
+ page.drawRectangle({x:slot.x, y:slot.y, width:slot.w, height:slot.h, borderColor:rgb(.86,.86,.86), borderWidth:.5});
+ page.drawImage(img, {x:slot.x + (slot.w - dw) / 2, y:slot.y + (slot.h - dh) / 2, width:dw, height:dh});
+}
+
+async function preencherFotosArea(pdf, page, fotos, inicio, area) {
+ let restante = fotos.length - inicio;
+ if(restante <= 0 || area.h < 110) return inicio;
+ let slots = [];
+ if(area.h >= 300 && restante >= 2) {
+  let gap = 10, h = (area.h - gap) / 2;
+  slots = [{x:area.x, y:area.y + h + gap, w:area.w, h}, {x:area.x, y:area.y, w:area.w, h}];
+ } else {
+  slots = [{x:area.x, y:area.y, w:area.w, h:area.h}];
+ }
+ for(let i=0; i<slots.length && inicio < fotos.length; i++, inicio++) await desenharFotoAjustada(pdf, page, fotos[inicio], slots[i]);
+ return inicio;
+}
+
+async function addRelatorioCompacto(pdf, font, bold, currentItem) {
+ let page = pdf.addPage([595.28, 841.89]), y = 805, margin = 35;
+ let fotos = currentItem.fotos || [], fotoIndex = 0;
+ draw(page, "PARECER TECNICO OPERACIONAL", margin, y, 12, bold); y -= 24;
+ draw(page, "OS:", margin, y, 8.5, bold); draw(page, currentItem.fields.osNumero, 62, y, 8.5, font);
+ draw(page, "RA:", 190, y, 8.5, bold); draw(page, currentItem.fields.raNumero, 215, y, 8.5, font);
+ draw(page, "Data:", 360, y, 8.5, bold); draw(page, currentItem.fields.dataExecucao, 395, y, 8.5, font); y -= 15;
+ draw(page, "Matricula:", margin, y, 8.5, bold); draw(page, currentItem.fields.matricula, 92, y, 8.5, font);
+ draw(page, "Tecnico:", 300, y, 8.5, bold); draw(page, currentItem.fields.executante, 352, y, 8.5, font); y -= 15;
+ draw(page, "Cliente:", margin, y, 8.5, bold); y = drawWrap(page, currentItem.fields.cliente || "-", 80, y, 90, 8.5, font);
+ y -= 8;
+ draw(page, "Solicitacao / Descricao da OS:", margin, y, 9, bold); y -= 13;
+ y = drawWrap(page, currentItem.fields.solicitacao || "-", margin, y, 108, 8.2, font);
+ y -= 10;
+ draw(page, "Parecer digitado:", margin, y, 9, bold); y -= 13;
+ y = drawWrap(page, currentItem.fields.parecer || "Nenhum parecer digitado.", margin, y, 108, 8.5, font);
+ if(currentItem.fields.relatorioTecnico && currentItem.fields.relatorioTecnico.trim()){
+  y -= 10;
+  draw(page, "Observacoes complementares:", margin, y, 9, bold); y -= 13;
+  y = drawWrap(page, currentItem.fields.relatorioTecnico, margin, y, 108, 8.2, font);
+ }
+ if(fotos.length){
+  y -= 12;
+  if(y > 185) {
+   draw(page, "Fotos da vistoria:", margin, y, 9, bold); y -= 10;
+   fotoIndex = await preencherFotosArea(pdf, page, fotos, fotoIndex, {x:margin, y:40, w:525, h:y - 40});
+  }
+  while(fotoIndex < fotos.length){
+   page = pdf.addPage([595.28, 841.89]);
+   draw(page, "FOTOS DA VISTORIA", margin, 805, 12, bold);
+   let restantes = fotos.length - fotoIndex, slots;
+   if(restantes === 1) slots = [{x:margin, y:80, w:525, h:680}];
+   else if(restantes === 2) slots = [{x:margin, y:430, w:525, h:330}, {x:margin, y:70, w:525, h:330}];
+   else slots = [{x:margin, y:470, w:255, h:290}, {x:305, y:470, w:255, h:290}, {x:margin, y:95, w:255, h:330}, {x:305, y:95, w:255, h:330}];
+   for(let i=0; i<slots.length && fotoIndex < fotos.length; i++, fotoIndex++) await desenharFotoAjustada(pdf, page, fotos[fotoIndex], slots[i]);
+  }
+ }
+}
+
+async function addPaginasFotos(pdf, currentItem) {
+ const {rgb} = PDFLib;
+ let fotos = currentItem.fotos || [];
+ if(!fotos.length) return;
+ for(let i=0; i<fotos.length; i+=2){
+  let page = pdf.addPage([595.28, 841.89]);
+  draw(page, "FOTOS DA VISTORIA", 35, 800, 12, await pdf.embedFont(PDFLib.StandardFonts.HelveticaBold));
+  let slots = [{x:40, y:440, w:515, h:300}, {x:40, y:90, w:515, h:300}];
+  let grupo = fotos.slice(i, i+2);
+  for(let j=0; j<grupo.length; j++){
+   let s = slots[j], img = await embedFoto(pdf, grupo[j]);
+   let sc = Math.min(s.w/img.width, s.h/img.height), dw = img.width*sc, dh = img.height*sc;
+   page.drawRectangle({x:s.x, y:s.y, width:s.w, height:s.h, borderColor:rgb(.75,.75,.75), borderWidth:1});
+   page.drawImage(img, {x:s.x+(s.w-dw)/2, y:s.y+(s.h-dh)/2, width:dw, height:dh});
+  }
+ }
+}
+
+async function addPaginaParecerFinal(pdf, font, bold, currentItem) {
+ let page = pdf.addPage([595.28, 841.89]), y = 800;
+ draw(page, "PARECER TECNICO OPERACIONAL", 35, y, 12, bold); y -= 30;
+ draw(page, "NÂº OS:", 35, y, 8.5, bold); draw(page, currentItem.fields.osNumero, 90, y, 8.5, font);
+ draw(page, "NÂº RA:", 310, y, 8.5, bold); draw(page, currentItem.fields.raNumero, 365, y, 8.5, font); y -= 16;
+ draw(page, "Matricula:", 35, y, 8.5, bold); draw(page, currentItem.fields.matricula, 90, y, 8.5, font);
+ draw(page, "Data:", 310, y, 8.5, bold); draw(page, currentItem.fields.dataExecucao, 365, y, 8.5, font); y -= 16;
+ draw(page, "Cliente:", 35, y, 8.5, bold); draw(page, currentItem.fields.cliente, 90, y, 8.5, font); y -= 16;
+ draw(page, "Tecnico:", 35, y, 8.5, bold); draw(page, currentItem.fields.executante, 90, y, 8.5, font); y -= 22;
+ draw(page, "Solicitacao / Descricao da OS:", 35, y, 9, bold); y -= 15;
+ y = drawWrap(page, currentItem.fields.solicitacao || "-", 35, y, 95, 8.5, font);
+ y -= 18;
+ draw(page, "Parecer digitado:", 35, y, 9, bold); y -= 15;
+ y = drawWrap(page, currentItem.fields.parecer || "Nenhum parecer digitado.", 35, y, 95, 8.5, font);
+ if(currentItem.fields.relatorioTecnico && currentItem.fields.relatorioTecnico.trim()){
+  y -= 18;
+  draw(page, "Observacoes complementares:", 35, y, 9, bold); y -= 15;
+  drawWrap(page, currentItem.fields.relatorioTecnico, 35, y, 95, 8.5, font);
+ }
+}
+
+function dataBytes(url){let bin=atob(url.split(",")[1]),b=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);return b}
+
+async function compartilharPDF(){
+ if(!ultimoBlob)return;
+ try{
+  let file=new File([ultimoBlob],ultimoNome,{type:"application/pdf"});
+  if(navigator.share) await navigator.share({files:[file],title:ultimoNome});
+ }catch(e){}
+}
+
+function salvarSilencioso(){
+ try{
+  let simplificada = listaOS.map(item => {
+    garantirIdentidade(item);
+    if(item.pdfBytes && item.pdfBytes.length > 0) {
+      salvarPdfOriginalPersistente(item);
+      try { localStorage.setItem(item.pdfKey, bytesParaDataUrl(item.pdfBytes)); } catch(e) {}
+    }
+    return {
+      id: item.id,
+      pdfKey: item.pdfKey,
+      nomeArquivoOriginal: item.nomeArquivoOriginal || "",
+      ordemImportacao: item.ordemImportacao || 0,
+      fields: Object.assign({}, item.fields),
+      fotos: Array.isArray(item.fotos) ? item.fotos.slice() : []
+    };
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ listaOS: simplificada, indexAtivo }));
+ }catch(e){}
+}
+
+async function carregarGlobal(){
+ try{
+  let raw=localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_ANTIGO); if(!raw) return;
+  let data=JSON.parse(raw);
+  listaOS = [];
+  for(let item of (data.listaOS || [])){
+    garantirIdentidade(item);
+    if(!recuperarPdfOriginal(item)) await recuperarPdfOriginalPersistente(item);
+    listaOS.push(item);
+  }
+  indexAtivo = Number.isInteger(data.indexAtivo) && data.indexAtivo >= 0 && data.indexAtivo < listaOS.length ? data.indexAtivo : (listaOS.length ? 0 : -1);
+  atualizarSelector(); if(indexAtivo >= 0) { carregarDadosDaMemoriaParaTela(); }
+  renderCentral();
+ }catch(e){}
+}
+
+function novaOS(){
+ if(!confirm("Limpar lote atual?")) return;
+ if(listaOS.length) {
+   listaOS.forEach(item => {
+   garantirIdentidade(item);
+    idbDelete(DB_STORE_PDFS, item.pdfKey);
+    localStorage.removeItem(item.pdfKey);
+    if(item.fields && item.fields.osNumero) localStorage.removeItem("pdf_bytes_" + item.fields.osNumero);
+   });
+ }
+ listaOS = []; indexAtivo = -1; limparCamposTela();
+ localStorage.removeItem(STORAGE_KEY);
+ localStorage.removeItem(STORAGE_KEY_ANTIGO);
+ atualizarSelector(); renderFotos(); renderCentral();
+}
+</script>
+</body>
+</html>
