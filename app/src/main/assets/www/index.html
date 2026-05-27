@@ -1015,6 +1015,32 @@ function drawWrap(page,text,x,y,max,size,font){
   return y;
 }
 
+function wrapPorLargura(text, maxWidth, size, font){
+ let words = String(text || "-").replace(/\s+/g, " ").trim().split(" ");
+ let lines = [], line = "";
+ words.forEach(function(word){
+  let test = line ? line + " " + word : word;
+  if(font.widthOfTextAtSize(test, size) > maxWidth && line){
+   lines.push(line);
+   line = word;
+  } else {
+   line = test;
+  }
+ });
+ if(line) lines.push(line);
+ return lines;
+}
+
+function drawWrapSeguro(page, text, x, y, maxWidth, size, font, minY){
+ let lines = wrapPorLargura(text, maxWidth, size, font);
+ for(let ln of lines){
+  if(y < minY) return { y, overflow: true };
+  draw(page, ln, x, y, size, font);
+  y -= (size + 5);
+ }
+ return { y, overflow: false };
+}
+
 async function embedFoto(pdf, foto){
  let bytes = dataBytes(foto.dataUrl);
  return foto.dataUrl.includes("image/png") ? pdf.embedPng(bytes) : pdf.embedJpg(bytes);
@@ -1045,30 +1071,35 @@ async function preencherFotosArea(pdf, page, fotos, inicio, area) {
 
 async function addRelatorioCompacto(pdf, font, bold, currentItem) {
  let page = pdf.addPage([595.28, 841.89]), y = 805, margin = 35;
- let fotos = currentItem.fotos || [], fotoIndex = 0;
+ let fotos = currentItem.fotos || [], fotoIndex = 0, textMaxWidth = 525, minTextoY = 150;
  draw(page, "PARECER TECNICO OPERACIONAL", margin, y, 12, bold); y -= 24;
  draw(page, "OS:", margin, y, 8.5, bold); draw(page, currentItem.fields.osNumero, 62, y, 8.5, font);
  draw(page, "RA:", 190, y, 8.5, bold); draw(page, currentItem.fields.raNumero, 215, y, 8.5, font);
  draw(page, "Data:", 360, y, 8.5, bold); draw(page, currentItem.fields.dataExecucao, 395, y, 8.5, font); y -= 15;
  draw(page, "Matricula:", margin, y, 8.5, bold); draw(page, currentItem.fields.matricula, 92, y, 8.5, font);
  draw(page, "Tecnico:", 300, y, 8.5, bold); draw(page, currentItem.fields.executante, 352, y, 8.5, font); y -= 15;
- draw(page, "Cliente:", margin, y, 8.5, bold); y = drawWrap(page, currentItem.fields.cliente || "-", 80, y, 90, 8.5, font);
+ draw(page, "Cliente:", margin, y, 8.5, bold);
+ let clienteBox = drawWrapSeguro(page, currentItem.fields.cliente || "-", 80, y, 480, 8.5, font, minTextoY);
+ y = clienteBox.y;
  y -= 8;
  draw(page, "Solicitacao / Descricao da OS:", margin, y, 9, bold); y -= 13;
- y = drawWrap(page, currentItem.fields.solicitacao || "-", margin, y, 108, 8.2, font);
+ let solicitacaoBox = drawWrapSeguro(page, currentItem.fields.solicitacao || "-", margin, y, textMaxWidth, 8.2, font, minTextoY);
+ y = solicitacaoBox.y;
  y -= 10;
  draw(page, "Parecer digitado:", margin, y, 9, bold); y -= 13;
- y = drawWrap(page, currentItem.fields.parecer || "Nenhum parecer digitado.", margin, y, 108, 8.5, font);
+ let parecerBox = drawWrapSeguro(page, currentItem.fields.parecer || "Nenhum parecer digitado.", margin, y, textMaxWidth, 8.5, font, minTextoY);
+ y = parecerBox.y;
  if(currentItem.fields.relatorioTecnico && currentItem.fields.relatorioTecnico.trim()){
   y -= 10;
   draw(page, "Observacoes complementares:", margin, y, 9, bold); y -= 13;
-  y = drawWrap(page, currentItem.fields.relatorioTecnico, margin, y, 108, 8.2, font);
- }
+  let obsBox = drawWrapSeguro(page, currentItem.fields.relatorioTecnico, margin, y, textMaxWidth, 8.2, font, minTextoY);
+  y = obsBox.y;
+  }
  if(fotos.length){
-  y -= 12;
-  if(y > 185) {
-   draw(page, "Fotos da vistoria:", margin, y, 9, bold); y -= 10;
-   fotoIndex = await preencherFotosArea(pdf, page, fotos, fotoIndex, {x:margin, y:40, w:525, h:y - 40});
+  y -= 18;
+  if(y > 360) {
+   draw(page, "Fotos da vistoria:", margin, y, 9, bold); y -= 18;
+   fotoIndex = await preencherFotosArea(pdf, page, fotos, fotoIndex, {x:margin, y:55, w:525, h:y - 55});
   }
   while(fotoIndex < fotos.length){
    page = pdf.addPage([595.28, 841.89]);
