@@ -4,13 +4,15 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.view.View;
+import android.provider.OpenableColumns;
+import android.util.Base64;
 import android.view.Window;
-import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -19,14 +21,22 @@ import android.webkit.WebViewClient;
 
 import androidx.core.content.FileProvider;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int PERMISSION_REQUEST = 1002;
+    private static final int NATIVE_PDF_REQUEST = 2001;
+    private static final int NATIVE_GALLERY_REQUEST = 2002;
+    private static final int NATIVE_CAMERA_REQUEST = 2003;
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
@@ -36,7 +46,6 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         webView = new WebView(this);
         setContentView(webView);
@@ -61,6 +70,7 @@ public class MainActivity extends Activity {
             settings.setAllowUniversalAccessFromFileURLs(true);
         }
 
+        webView.addJavascriptInterface(new RiosAndroidBridge(), "RiosAndroid");
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -85,6 +95,39 @@ public class MainActivity extends Activity {
         });
     }
 
+    public class RiosAndroidBridge {
+        @JavascriptInterface
+        public void openPdfPicker() {
+            runOnUiThread(() -> startNativePicker(NATIVE_PDF_REQUEST, "application/pdf", true));
+        }
+
+        @JavascriptInterface
+        public void openGalleryPicker() {
+            runOnUiThread(() -> startNativePicker(NATIVE_GALLERY_REQUEST, "image/*", true));
+        }
+
+        @JavascriptInterface
+        public void openCamera() {
+            runOnUiThread(() -> startNativeCamera());
+        }
+    }
+
+    private void startNativePicker(int requestCode, String type, boolean allowMultiple) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(type);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, allowMultiple);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, requestCode);
+    }
+
+    private void startNativeCamera() {
+        Intent cameraIntent = buildCameraIntent();
+        if (cameraIntent != null) {
+            startActivityForResult(cameraIntent, NATIVE_CAMERA_REQUEST);
+        }
+    }
+
     private Intent buildChooserIntent(WebChromeClient.FileChooserParams params) {
         String[] acceptTypes = normalizeAcceptTypes(params.getAcceptTypes());
         boolean allowMultiple = params.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE;
@@ -105,11 +148,7 @@ public class MainActivity extends Activity {
             fileIntent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/pdf", "image/*"});
         }
 
-        Intent cameraIntent = null;
-        if (wantsImage) {
-            cameraIntent = buildCameraIntent();
-        }
-
+        Intent cameraIntent = wantsImage ? buildCameraIntent() : null;
         if (cameraIntent == null) {
             return fileIntent;
         }
@@ -185,6 +224,16 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == NATIVE_PDF_REQUEST) {
+            enviarArquivosParaHtml("pdf", collectSelectedUris(resultCode, data));
+            return;
+        }
+
+        if (requestCode == NATIVE_GALLERY_REQUEST || requestCode == NATIVE_CAMERA_REQUEST) {
+            enviarArquivosParaHtml("foto", collectSelectedUris(resultCode, data));
+            return;
+        }
+
         if (requestCode != FILE_CHOOSER_REQUEST || filePathCallback == null) {
             return;
         }
@@ -227,6 +276,78 @@ public class MainActivity extends Activity {
         return uris.toArray(new Uri[0]);
     }
 
+    private void enviarArquivosParaHtml(String tipo, Uri[] uris) {
+        if (uris == null || uris.length == 0) {
+            return;
+        }
+
+        try {
+            JSONArray arquivos = new JSONArray();
+            for (Uri uri : uris) {
+                JSONObject item = new JSONObject();
+                item.put("name", obterNomeArquivo(uri, tipo));
+                item.put("mime", obterMime(uri, tipo));
+                item.put("data", lerBase64(uri));
+                arquivos.put(item);
+            }
+
+            String script = "window.receberArquivosAndroid && window.receberArquivosAndroid("
+                    + JSONObject.quote(tipo) + "," + arquivos.toString() + ");";
+            webView.evaluateJavascript(script, null);
+        } catch (Exception error) {
+            webView.evaluateJavascript("alert('Nao foi possivel carregar o arquivo selecionado no Android.');", null);
+        } finally {
+            cameraPhotoUri = null;
+        }
+    }
+
+    private String lerBase64(Uri uri) throws IOException {
+        InputStream inputStream = getContentResolver().openInputStream(uri);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while (inputStream != null && (read = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, read);
+        }
+        if (inputStream != null) {
+            inputStream.close();
+        }
+        return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP);
+    }
+
+    private String obterMime(Uri uri, String tipo) {
+        String mime = getContentResolver().getType(uri);
+        if (mime != null && !mime.trim().isEmpty()) {
+            return mime;
+        }
+        return "pdf".equals(tipo) ? "application/pdf" : "image/jpeg";
+    }
+
+    private String obterNomeArquivo(Uri uri, String tipo) {
+        String nome = null;
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) {
+                    nome = cursor.getString(index);
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        if (nome != null && !nome.trim().isEmpty()) {
+            return nome;
+        }
+
+        return "pdf".equals(tipo) ? "ordem_servico.pdf" : "foto.jpg";
+    }
+
     @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
@@ -242,7 +363,6 @@ public class MainActivity extends Activity {
         super.onResume();
         if (webView != null) {
             webView.onResume();
-            webView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN);
         }
     }
 }

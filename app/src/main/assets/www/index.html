@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Retorno Inteligente de OS - V47 Final de Campo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
@@ -13,7 +13,7 @@
  --blue:#2563eb;--green:#10b981;--red:#ef4444;--amber:#f59e0b;--shadow:0 4px 12px rgba(0,0,0,.05)
 }
 *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,sans-serif}
-body{background:var(--bg);color:var(--text);padding-bottom:100px}
+body{background:var(--bg);color:var(--text);padding-bottom:calc(140px + env(safe-area-inset-bottom,0px))}
 header{background:#fff;border-bottom:1px solid var(--line);padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;font-weight:bold;display:flex;align-items:center;justify-content:center;font-size:13px}
@@ -76,7 +76,7 @@ canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0
 .photo img{width:100%;height:120px;object-fit:cover}
 .photo button{position:absolute;top:4px;right:4px;border:0;border-radius:4px;background:rgba(239,68,68,0.9);color:#fff;font-weight:bold;padding:3px 6px;font-size:10px}
 .download{display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px;margin-top:10px}
-.fixed{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px;display:flex;gap:8px;z-index:30}.fixed .btn{flex:1;padding:15px;font-size:14px}
+.fixed{position:fixed;bottom:env(safe-area-inset-bottom,0px);left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;z-index:30}.fixed .btn{flex:1;padding:15px;font-size:14px}
 @media(max-width:430px){.ficha-row{grid-template-columns:1fr}}
 </style>
 </head>
