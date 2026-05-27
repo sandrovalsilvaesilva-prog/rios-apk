@@ -1027,9 +1027,20 @@ function dataBytes(url){let bin=atob(url.split(",")[1]),b=new Uint8Array(bin.len
 async function compartilharPDF(){
  if(!ultimoBlob)return;
  try{
+  if(window.RiosAndroid && typeof window.RiosAndroid.salvarECompartilharPdf === "function"){
+   let buffer = await ultimoBlob.arrayBuffer();
+   let bytes = new Uint8Array(buffer);
+   let bin = "";
+   let bloco = 0x8000;
+   for(let i=0;i<bytes.length;i+=bloco){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + bloco));
+   }
+   window.RiosAndroid.salvarECompartilharPdf(ultimoNome || "retorno.pdf", btoa(bin));
+   return;
+  }
   let file=new File([ultimoBlob],ultimoNome,{type:"application/pdf"});
   if(navigator.share) await navigator.share({files:[file],title:ultimoNome});
- }catch(e){}
+ }catch(e){alert("PDF gerado, mas nao foi possivel abrir o compartilhamento neste aparelho.")}
 }
 
 function salvarSilencioso(){

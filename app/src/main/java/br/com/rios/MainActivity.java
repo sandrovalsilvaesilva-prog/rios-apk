@@ -8,6 +8,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Base64;
@@ -26,6 +27,7 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -109,6 +111,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openCamera() {
             runOnUiThread(() -> startNativeCamera());
+        }
+
+        @JavascriptInterface
+        public void salvarECompartilharPdf(String nomeArquivo, String base64Pdf) {
+            runOnUiThread(() -> salvarECompartilharPdfNativo(nomeArquivo, base64Pdf));
         }
     }
 
@@ -346,6 +353,48 @@ public class MainActivity extends Activity {
         }
 
         return "pdf".equals(tipo) ? "ordem_servico.pdf" : "foto.jpg";
+    }
+
+    private void salvarECompartilharPdfNativo(String nomeArquivo, String base64Pdf) {
+        try {
+            String nomeSeguro = limparNomeArquivo(nomeArquivo);
+            byte[] bytes = Base64.decode(base64Pdf, Base64.DEFAULT);
+            File pasta = getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+            if (pasta == null) {
+                pasta = getFilesDir();
+            }
+            if (!pasta.exists()) {
+                pasta.mkdirs();
+            }
+
+            File arquivo = new File(pasta, nomeSeguro);
+            FileOutputStream outputStream = new FileOutputStream(arquivo);
+            outputStream.write(bytes);
+            outputStream.flush();
+            outputStream.close();
+
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", arquivo);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("application/pdf");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.putExtra(Intent.EXTRA_SUBJECT, nomeSeguro);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent, "Enviar PDF do RIOS"));
+        } catch (Exception error) {
+            webView.evaluateJavascript("alert('PDF gerado, mas o Android nao conseguiu abrir o envio.');", null);
+        }
+    }
+
+    private String limparNomeArquivo(String nomeArquivo) {
+        String nome = nomeArquivo == null ? "retorno.pdf" : nomeArquivo.trim();
+        if (nome.isEmpty()) {
+            nome = "retorno.pdf";
+        }
+        nome = nome.replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (!nome.toLowerCase().endsWith(".pdf")) {
+            nome += ".pdf";
+        }
+        return nome;
     }
 
     @Override
