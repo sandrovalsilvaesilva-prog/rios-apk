@@ -68,7 +68,8 @@ canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0
 .modal{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:100;flex-direction:column;align-items:center;justify-content:center;padding:10px}
 .modal-actions{display:flex;gap:10px;margin-bottom:12px;width:100%;max-width:400px}
 .modal-actions .btn{flex:1;padding:12px;font-size:14px}
-.modal-canvas-wrapper{overflow:auto;max-width:100%;max-height:80vh;display:flex;align-items:center;justify-content:center}
+.modal-canvas-wrapper{overflow:auto;width:100%;height:80vh;display:block;touch-action:none;text-align:left}
+.modal-canvas-wrapper canvas{max-width:none;transform-origin:0 0}
 .camera-preview{width:100%;max-width:520px;max-height:70vh;background:#000;border-radius:8px;object-fit:contain}
 
 .photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
@@ -269,22 +270,24 @@ const STORAGE_KEY = "retorno_os_textos_v37_corrigido";
 const STORAGE_KEY_ANTIGO = "retorno_os_textos_v28";
 const DB_NAME = "retorno_inteligente_os_v43";
 const DB_STORE_PDFS = "pdfs_originais";
-let listaOS = []; let indexAtivo = -1; let ultimoBlob=null, ultimoNome="retorno.pdf"; let grausRotacao = 0; let renderToken = 0; let cameraStream = null;
+let listaOS = []; let indexAtivo = -1; let ultimoBlob=null, ultimoNome="retorno.pdf"; let grausRotacao = 0; let renderToken = 0; let cameraStream = null; let saveTimer = null;
+let zoomOS = {scale:1, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
 
 window.onload=async function(){
  document.getElementById("dataExecucao").value=new Date().toLocaleDateString("pt-BR");
  document.getElementById("pdfInput").addEventListener("change",carregarPDFs);
  document.getElementById("cameraInput").addEventListener("change",function(e){addFotos(e.target.files)});
  document.getElementById("galleryInput").addEventListener("change",function(e){addFotos(e.target.files)});
- document.getElementById("parecer").addEventListener("input",function(){contador();salvarDadosEmMemoria();});
- document.getElementById("txtSolicitacao").addEventListener("input",salvarDadosEmMemoria);
- document.getElementById("relatorioTecnico").addEventListener("input",salvarDadosEmMemoria);
+ document.getElementById("parecer").addEventListener("input",function(){contador();agendarSalvarDados();});
+ document.getElementById("txtSolicitacao").addEventListener("input",agendarSalvarDados);
+ document.getElementById("relatorioTecnico").addEventListener("input",agendarSalvarDados);
  let historicoNotasEl = document.getElementById("historicoNotas");
- if(historicoNotasEl) historicoNotasEl.addEventListener("input",salvarDadosEmMemoria);
- document.getElementById("executante").addEventListener("input",salvarDadosEmMemoria);
+ if(historicoNotasEl) historicoNotasEl.addEventListener("input",agendarSalvarDados);
+ document.getElementById("executante").addEventListener("input",agendarSalvarDados);
  document.getElementById("nomePadrao").addEventListener("change",function(){salvarDadosEmMemoria();atualizarNome();});
- document.getElementById("nomeArquivo").addEventListener("input",salvarDadosEmMemoria);
- 
+ document.getElementById("nomeArquivo").addEventListener("input",agendarSalvarDados);
+ configurarZoomOS();
+  
  await carregarGlobal();
  renderCentral();
 };
@@ -639,7 +642,7 @@ async function abrirModalHistorico() {
   if (indexAtivo < 0 || !listaOS[indexAtivo]) return;
   document.getElementById('historicoModal').style.display = 'flex';
   grausRotacao = 0;
-  document.getElementById('pdfCanvasModal').style.transform = "none";
+  resetarZoomOS();
 
   let item = garantirIdentidade(listaOS[indexAtivo]);
   let token = ++renderToken;
@@ -657,19 +660,75 @@ async function abrirModalHistorico() {
     canvasModal.width = viewportModal.width;
 
     await page.render({canvasContext: contextModal, viewport: viewportModal}).promise;
+    resetarZoomOS();
   } catch(e){}
 }
 
 function girarCanvas() {
   grausRotacao = (grausRotacao + 90) % 360;
-  let canvas = document.getElementById('pdfCanvasModal');
-  if(grausRotacao === 90) canvas.style.transform = "rotate(90deg) scale(0.8)";
-  else if(grausRotacao === 180) canvas.style.transform = "rotate(180deg)";
-  else if(grausRotacao === 270) canvas.style.transform = "rotate(270deg) scale(0.8)";
-  else canvas.style.transform = "none";
+  aplicarZoomOS();
 }
 
 function fecharModalHistorico() { document.getElementById('historicoModal').style.display = 'none'; }
+
+function resetarZoomOS(){
+ zoomOS = {scale:1, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
+ aplicarZoomOS();
+ let wrapper = document.querySelector("#historicoModal .modal-canvas-wrapper");
+ if(wrapper){ wrapper.scrollLeft = 0; wrapper.scrollTop = 0; }
+}
+
+function aplicarZoomOS(){
+ let canvas = document.getElementById('pdfCanvasModal');
+ if(!canvas) return;
+ canvas.style.transform = `rotate(${grausRotacao}deg) scale(${zoomOS.scale})`;
+}
+
+function distanciaToque(touches){
+ let dx = touches[0].clientX - touches[1].clientX;
+ let dy = touches[0].clientY - touches[1].clientY;
+ return Math.sqrt(dx*dx + dy*dy);
+}
+
+function configurarZoomOS(){
+ let wrapper = document.querySelector("#historicoModal .modal-canvas-wrapper");
+ if(!wrapper || wrapper.dataset.zoomConfigurado) return;
+ wrapper.dataset.zoomConfigurado = "1";
+ wrapper.addEventListener("wheel", function(e){
+  e.preventDefault();
+  let fator = e.deltaY < 0 ? 1.12 : 0.88;
+  zoomOS.scale = Math.max(1, Math.min(5, zoomOS.scale * fator));
+  aplicarZoomOS();
+ }, {passive:false});
+ wrapper.addEventListener("touchstart", function(e){
+  if(e.touches.length === 2){
+   zoomOS.startDistance = distanciaToque(e.touches);
+   zoomOS.baseScale = zoomOS.scale;
+  } else if(e.touches.length === 1 && zoomOS.scale > 1){
+   zoomOS.dragging = true;
+   zoomOS.lastX = e.touches[0].clientX;
+   zoomOS.lastY = e.touches[0].clientY;
+  }
+ }, {passive:false});
+ wrapper.addEventListener("touchmove", function(e){
+  if(e.touches.length === 2 && zoomOS.startDistance){
+   e.preventDefault();
+   let novo = zoomOS.baseScale * (distanciaToque(e.touches) / zoomOS.startDistance);
+   zoomOS.scale = Math.max(1, Math.min(5, novo));
+   aplicarZoomOS();
+  } else if(e.touches.length === 1 && zoomOS.dragging && zoomOS.scale > 1){
+   e.preventDefault();
+   let x = e.touches[0].clientX, y = e.touches[0].clientY;
+   wrapper.scrollLeft -= x - zoomOS.lastX;
+   wrapper.scrollTop -= y - zoomOS.lastY;
+   zoomOS.lastX = x; zoomOS.lastY = y;
+  }
+ }, {passive:false});
+ wrapper.addEventListener("touchend", function(){
+  zoomOS.dragging = false;
+  zoomOS.startDistance = 0;
+ }, {passive:false});
+}
 
 function atualizarSelector(){
  let sel = document.getElementById("osSelector"); sel.innerHTML = "";
@@ -735,6 +794,14 @@ function salvarDadosEmMemoria(){
  item.fields.nomePadrao = document.getElementById("nomePadrao").value;
  item.fields.nomeArquivo = document.getElementById("nomeArquivo").value;
  salvarSilencioso();
+}
+
+function agendarSalvarDados(){
+ if(saveTimer) clearTimeout(saveTimer);
+ saveTimer = setTimeout(function(){
+  saveTimer = null;
+  salvarDadosEmMemoria();
+ }, 450);
 }
 
 function carregarDadosDaMemoriaParaTela(){
