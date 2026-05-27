@@ -68,9 +68,9 @@ canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0
 .modal{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:100;flex-direction:column;align-items:center;justify-content:center;padding:10px}
 .modal-actions{display:flex;gap:10px;margin-bottom:12px;width:100%;max-width:400px}
 .modal-actions .btn{flex:1;padding:12px;font-size:14px}
-.modal-canvas-wrapper{overflow:auto;width:100%;height:80vh;display:block;touch-action:none;text-align:left;-webkit-overflow-scrolling:touch}
-.zoom-surface{position:relative;display:block;min-width:100%;min-height:100%}
-.modal-canvas-wrapper canvas{max-width:none;transform-origin:center center}
+.modal-canvas-wrapper{overflow:hidden;width:100%;height:80vh;display:block;touch-action:none;position:relative;background:#111827}
+.zoom-surface{position:absolute;inset:0;overflow:hidden}
+.modal-canvas-wrapper canvas{max-width:none;transform-origin:0 0;position:absolute;left:0;top:0}
 .camera-preview{width:100%;max-width:520px;max-height:70vh;background:#000;border-radius:8px;object-fit:contain}
 
 .photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
@@ -274,7 +274,7 @@ const STORAGE_KEY_ANTIGO = "retorno_os_textos_v28";
 const DB_NAME = "retorno_inteligente_os_v43";
 const DB_STORE_PDFS = "pdfs_originais";
 let listaOS = []; let indexAtivo = -1; let ultimoBlob=null, ultimoNome="retorno.pdf"; let grausRotacao = 0; let renderToken = 0; let cameraStream = null; let saveTimer = null;
-let zoomOS = {scale:1, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
+let zoomOS = {scale:1, minScale:1, x:0, y:0, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
 
 window.onload=async function(){
  document.getElementById("dataExecucao").value=new Date().toLocaleDateString("pt-BR");
@@ -663,7 +663,7 @@ async function abrirModalHistorico() {
     canvasModal.width = viewportModal.width;
 
     await page.render({canvasContext: contextModal, viewport: viewportModal}).promise;
-    resetarZoomOS();
+    ajustarOSNaTela();
   } catch(e){}
 }
 
@@ -675,26 +675,44 @@ function girarCanvas() {
 function fecharModalHistorico() { document.getElementById('historicoModal').style.display = 'none'; }
 
 function resetarZoomOS(){
- zoomOS = {scale:1, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
+ zoomOS = {scale:1, minScale:1, x:0, y:0, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
  aplicarZoomOS();
- let wrapper = document.querySelector("#historicoModal .modal-canvas-wrapper");
- if(wrapper){ wrapper.scrollLeft = 0; wrapper.scrollTop = 0; }
 }
 
 function aplicarZoomOS(){
  let canvas = document.getElementById('pdfCanvasModal');
- let surface = document.getElementById('zoomSurfaceOS');
  if(!canvas) return;
- let baseW = canvas.width || canvas.offsetWidth || 1;
- let baseH = canvas.height || canvas.offsetHeight || 1;
- canvas.style.width = Math.ceil(baseW * zoomOS.scale) + "px";
- canvas.style.height = Math.ceil(baseH * zoomOS.scale) + "px";
- canvas.style.transform = `rotate(${grausRotacao}deg)`;
- if(surface){
-  let invertido = grausRotacao === 90 || grausRotacao === 270;
-  surface.style.width = Math.ceil((invertido ? baseH : baseW) * zoomOS.scale + 40) + "px";
-  surface.style.height = Math.ceil((invertido ? baseW : baseH) * zoomOS.scale + 40) + "px";
- }
+ limitarPanOS();
+ canvas.style.transform = `translate(${zoomOS.x}px, ${zoomOS.y}px) rotate(${grausRotacao}deg) scale(${zoomOS.scale})`;
+}
+
+function ajustarOSNaTela(){
+ let canvas = document.getElementById('pdfCanvasModal');
+ let wrapper = document.querySelector("#historicoModal .modal-canvas-wrapper");
+ if(!canvas || !wrapper || !canvas.width || !canvas.height) return;
+ let margem = 12;
+ let escalaLargura = (wrapper.clientWidth - margem) / canvas.width;
+ let escalaAltura = (wrapper.clientHeight - margem) / canvas.height;
+ let fit = Math.min(escalaLargura, escalaAltura, 1);
+ zoomOS.minScale = Math.max(0.15, fit);
+ zoomOS.scale = zoomOS.minScale;
+ zoomOS.x = Math.max(0, (wrapper.clientWidth - canvas.width * zoomOS.scale) / 2);
+ zoomOS.y = Math.max(0, (wrapper.clientHeight - canvas.height * zoomOS.scale) / 2);
+ aplicarZoomOS();
+}
+
+function limitarPanOS(){
+ let canvas = document.getElementById('pdfCanvasModal');
+ let wrapper = document.querySelector("#historicoModal .modal-canvas-wrapper");
+ if(!canvas || !wrapper) return;
+ let largura = canvas.width * zoomOS.scale;
+ let altura = canvas.height * zoomOS.scale;
+ let minX = Math.min(0, wrapper.clientWidth - largura);
+ let minY = Math.min(0, wrapper.clientHeight - altura);
+ let maxX = largura <= wrapper.clientWidth ? (wrapper.clientWidth - largura) / 2 : 0;
+ let maxY = altura <= wrapper.clientHeight ? (wrapper.clientHeight - altura) / 2 : 0;
+ zoomOS.x = Math.max(minX, Math.min(maxX, zoomOS.x));
+ zoomOS.y = Math.max(minY, Math.min(maxY, zoomOS.y));
 }
 
 function distanciaToque(touches){
@@ -710,14 +728,14 @@ function configurarZoomOS(){
  wrapper.addEventListener("wheel", function(e){
   e.preventDefault();
   let fator = e.deltaY < 0 ? 1.12 : 0.88;
-  zoomOS.scale = Math.max(1, Math.min(5, zoomOS.scale * fator));
+  zoomOS.scale = Math.max(zoomOS.minScale, Math.min(5, zoomOS.scale * fator));
   aplicarZoomOS();
  }, {passive:false});
  wrapper.addEventListener("touchstart", function(e){
   if(e.touches.length === 2){
    zoomOS.startDistance = distanciaToque(e.touches);
    zoomOS.baseScale = zoomOS.scale;
-  } else if(e.touches.length === 1 && zoomOS.scale > 1){
+  } else if(e.touches.length === 1){
    zoomOS.dragging = true;
    zoomOS.lastX = e.touches[0].clientX;
    zoomOS.lastY = e.touches[0].clientY;
@@ -727,14 +745,15 @@ function configurarZoomOS(){
   if(e.touches.length === 2 && zoomOS.startDistance){
    e.preventDefault();
    let novo = zoomOS.baseScale * (distanciaToque(e.touches) / zoomOS.startDistance);
-   zoomOS.scale = Math.max(1, Math.min(5, novo));
+   zoomOS.scale = Math.max(zoomOS.minScale, Math.min(5, novo));
    aplicarZoomOS();
-  } else if(e.touches.length === 1 && zoomOS.dragging && zoomOS.scale > 1){
+  } else if(e.touches.length === 1 && zoomOS.dragging){
    e.preventDefault();
    let x = e.touches[0].clientX, y = e.touches[0].clientY;
-   wrapper.scrollLeft += zoomOS.lastX - x;
-   wrapper.scrollTop += zoomOS.lastY - y;
+   zoomOS.x += x - zoomOS.lastX;
+   zoomOS.y += y - zoomOS.lastY;
    zoomOS.lastX = x; zoomOS.lastY = y;
+   aplicarZoomOS();
   }
  }, {passive:false});
  wrapper.addEventListener("touchend", function(){
