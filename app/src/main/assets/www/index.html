@@ -68,8 +68,9 @@ canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0
 .modal{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(15,23,42,0.95);z-index:100;flex-direction:column;align-items:center;justify-content:center;padding:10px}
 .modal-actions{display:flex;gap:10px;margin-bottom:12px;width:100%;max-width:400px}
 .modal-actions .btn{flex:1;padding:12px;font-size:14px}
-.modal-canvas-wrapper{overflow:auto;width:100%;height:80vh;display:block;touch-action:none;text-align:left}
-.modal-canvas-wrapper canvas{max-width:none;transform-origin:0 0}
+.modal-canvas-wrapper{overflow:auto;width:100%;height:80vh;display:block;touch-action:none;text-align:left;-webkit-overflow-scrolling:touch}
+.zoom-surface{position:relative;display:block;min-width:100%;min-height:100%}
+.modal-canvas-wrapper canvas{max-width:none;transform-origin:center center}
 .camera-preview{width:100%;max-width:520px;max-height:70vh;background:#000;border-radius:8px;object-fit:contain}
 
 .photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
@@ -256,7 +257,9 @@ canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0
     <button class="btn red" onclick="fecharModalHistorico()">Fechar</button>
   </div>
   <div class="modal-canvas-wrapper">
-    <canvas id="pdfCanvasModal"></canvas>
+    <div id="zoomSurfaceOS" class="zoom-surface">
+      <canvas id="pdfCanvasModal"></canvas>
+    </div>
   </div>
 </div>
 
@@ -680,8 +683,18 @@ function resetarZoomOS(){
 
 function aplicarZoomOS(){
  let canvas = document.getElementById('pdfCanvasModal');
+ let surface = document.getElementById('zoomSurfaceOS');
  if(!canvas) return;
- canvas.style.transform = `rotate(${grausRotacao}deg) scale(${zoomOS.scale})`;
+ let baseW = canvas.width || canvas.offsetWidth || 1;
+ let baseH = canvas.height || canvas.offsetHeight || 1;
+ canvas.style.width = Math.ceil(baseW * zoomOS.scale) + "px";
+ canvas.style.height = Math.ceil(baseH * zoomOS.scale) + "px";
+ canvas.style.transform = `rotate(${grausRotacao}deg)`;
+ if(surface){
+  let invertido = grausRotacao === 90 || grausRotacao === 270;
+  surface.style.width = Math.ceil((invertido ? baseH : baseW) * zoomOS.scale + 40) + "px";
+  surface.style.height = Math.ceil((invertido ? baseW : baseH) * zoomOS.scale + 40) + "px";
+ }
 }
 
 function distanciaToque(touches){
@@ -719,8 +732,8 @@ function configurarZoomOS(){
   } else if(e.touches.length === 1 && zoomOS.dragging && zoomOS.scale > 1){
    e.preventDefault();
    let x = e.touches[0].clientX, y = e.touches[0].clientY;
-   wrapper.scrollLeft -= x - zoomOS.lastX;
-   wrapper.scrollTop -= y - zoomOS.lastY;
+   wrapper.scrollLeft += zoomOS.lastX - x;
+   wrapper.scrollTop += zoomOS.lastY - y;
    zoomOS.lastX = x; zoomOS.lastY = y;
   }
  }, {passive:false});

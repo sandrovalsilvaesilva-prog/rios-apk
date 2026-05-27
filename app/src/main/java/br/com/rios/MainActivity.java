@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private Uri cameraPhotoUri;
+    private Uri[] pendingSharedUris;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,6 +55,7 @@ public class MainActivity extends Activity {
         configureWebView();
         requestBasicPermissions();
         webView.loadUrl("file:///android_asset/www/index.html");
+        capturarCompartilhamento(getIntent());
     }
 
     private void configureWebView() {
@@ -73,7 +75,13 @@ public class MainActivity extends Activity {
         }
 
         webView.addJavascriptInterface(new RiosAndroidBridge(), "RiosAndroid");
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                entregarCompartilhamentoPendente();
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
@@ -95,6 +103,14 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        capturarCompartilhamento(intent);
+        entregarCompartilhamentoPendente();
     }
 
     public class RiosAndroidBridge {
@@ -133,6 +149,47 @@ public class MainActivity extends Activity {
         if (cameraIntent != null) {
             startActivityForResult(cameraIntent, NATIVE_CAMERA_REQUEST);
         }
+    }
+
+    private void capturarCompartilhamento(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+
+        String action = intent.getAction();
+        List<Uri> uris = new ArrayList<>();
+
+        if (Intent.ACTION_SEND.equals(action)) {
+            Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (uri != null) {
+                uris.add(uri);
+            }
+        } else if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            ArrayList<Uri> recebidos = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (recebidos != null) {
+                for (Uri uri : recebidos) {
+                    if (uri != null) {
+                        uris.add(uri);
+                    }
+                }
+            }
+        } else if (Intent.ACTION_VIEW.equals(action) && intent.getData() != null) {
+            uris.add(intent.getData());
+        }
+
+        if (!uris.isEmpty()) {
+            pendingSharedUris = uris.toArray(new Uri[0]);
+        }
+    }
+
+    private void entregarCompartilhamentoPendente() {
+        if (pendingSharedUris == null || pendingSharedUris.length == 0 || webView == null) {
+            return;
+        }
+
+        Uri[] uris = pendingSharedUris;
+        pendingSharedUris = null;
+        webView.postDelayed(() -> enviarArquivosParaHtml("pdf", uris), 500);
     }
 
     private Intent buildChooserIntent(WebChromeClient.FileChooserParams params) {
