@@ -271,8 +271,10 @@ canvas{max-width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0
 pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 const STORAGE_KEY = "retorno_os_textos_v37_corrigido";
 const STORAGE_KEY_ANTIGO = "retorno_os_textos_v28";
+const STATUS_STORAGE_KEY = "retorno_os_status_map_v48";
 const DB_NAME = "retorno_inteligente_os_v43";
 const DB_STORE_PDFS = "pdfs_originais";
+const DB_STATE_KEY = "__estado_gerencial_rios__";
 let listaOS = []; let indexAtivo = -1; let ultimoBlob=null, ultimoNome="retorno.pdf"; let grausRotacao = 0; let renderToken = 0; let cameraStream = null; let saveTimer = null;
 let zoomOS = {scale:1, minScale:1, x:0, y:0, startDistance:0, baseScale:1, dragging:false, lastX:0, lastY:0};
 
@@ -290,6 +292,10 @@ window.onload=async function(){
  document.getElementById("nomePadrao").addEventListener("change",function(){salvarDadosEmMemoria();atualizarNome();});
  document.getElementById("nomeArquivo").addEventListener("input",agendarSalvarDados);
  configurarZoomOS();
+ window.addEventListener("beforeunload", salvarDadosEmMemoria);
+ document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "hidden") salvarDadosEmMemoria();
+ });
   
  await carregarGlobal();
  renderCentral();
@@ -410,7 +416,50 @@ function bytesParaDataUrl(bytes){
  let arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
  let binary = "", chunk = 8192;
  for(let i=0; i<arr.length; i+=chunk) binary += String.fromCharCode.apply(null, arr.subarray(i, i + chunk));
- return "data:application/pdf;base64," + btoa(binary);
+  return "data:application/pdf;base64," + btoa(binary);
+}
+
+function montarEstadoGerencial(){
+ let simplificada = listaOS.map(item => {
+   garantirIdentidade(item);
+   if(item.pdfBytes && item.pdfBytes.length > 0) salvarPdfOriginalPersistente(item);
+   return {
+     id: item.id,
+     pdfKey: item.pdfKey,
+     nomeArquivoOriginal: item.nomeArquivoOriginal || "",
+     ordemImportacao: item.ordemImportacao || 0,
+     fields: Object.assign({}, item.fields),
+     fotos: Array.isArray(item.fotos) ? item.fotos.slice() : []
+   };
+ });
+ return { listaOS: simplificada, indexAtivo, salvoEm: new Date().toISOString() };
+}
+
+function salvarMapaStatusGerencial(){
+ try{
+  let mapa = {};
+  listaOS.forEach(item => {
+   garantirIdentidade(item);
+   mapa[item.id] = {
+    status: item.fields.status || "recebida",
+    nomeArquivo: item.fields.nomeArquivo || "",
+    parecer: item.fields.parecer || "",
+    relatorioTecnico: item.fields.relatorioTecnico || "",
+    historicoNotas: item.fields.historicoNotas || ""
+   };
+  });
+  localStorage.setItem(STATUS_STORAGE_KEY, JSON.stringify(mapa));
+ }catch(e){}
+}
+
+function aplicarMapaStatusGerencial(item, mapa){
+ if(!item || !mapa || !mapa[item.id]) return;
+ let salvo = mapa[item.id];
+ if(salvo.status) item.fields.status = salvo.status;
+ if(salvo.nomeArquivo) item.fields.nomeArquivo = salvo.nomeArquivo;
+ if(salvo.parecer && !item.fields.parecer) item.fields.parecer = salvo.parecer;
+ if(salvo.relatorioTecnico && !item.fields.relatorioTecnico) item.fields.relatorioTecnico = salvo.relatorioTecnico;
+ if(salvo.historicoNotas && !item.fields.historicoNotas) item.fields.historicoNotas = salvo.historicoNotas;
 }
 function abrirBancoLocal(){
  return new Promise((resolve,reject)=>{
@@ -1175,32 +1224,27 @@ async function compartilharPDF(){
 
 function salvarSilencioso(){
  try{
-  let simplificada = listaOS.map(item => {
-    garantirIdentidade(item);
-    if(item.pdfBytes && item.pdfBytes.length > 0) {
-      salvarPdfOriginalPersistente(item);
-      try { localStorage.setItem(item.pdfKey, bytesParaDataUrl(item.pdfBytes)); } catch(e) {}
-    }
-    return {
-      id: item.id,
-      pdfKey: item.pdfKey,
-      nomeArquivoOriginal: item.nomeArquivoOriginal || "",
-      ordemImportacao: item.ordemImportacao || 0,
-      fields: Object.assign({}, item.fields),
-      fotos: Array.isArray(item.fotos) ? item.fotos.slice() : []
-    };
-  });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ listaOS: simplificada, indexAtivo }));
+  let estado = montarEstadoGerencial();
+  salvarMapaStatusGerencial();
+  idbPut(DB_STORE_PDFS, DB_STATE_KEY, estado);
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(estado)); } catch(e) {}
  }catch(e){}
 }
 
 async function carregarGlobal(){
  try{
-  let raw=localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_ANTIGO); if(!raw) return;
-  let data=JSON.parse(raw);
+  let data = await idbGet(DB_STORE_PDFS, DB_STATE_KEY);
+  if(!data){
+   let raw=localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_ANTIGO);
+   if(!raw) return;
+   data=JSON.parse(raw);
+  }
+  let mapaStatus = null;
+  try { mapaStatus = JSON.parse(localStorage.getItem(STATUS_STORAGE_KEY) || "null"); } catch(e) {}
   listaOS = [];
   for(let item of (data.listaOS || [])){
     garantirIdentidade(item);
+    aplicarMapaStatusGerencial(item, mapaStatus);
     if(!recuperarPdfOriginal(item)) await recuperarPdfOriginalPersistente(item);
     listaOS.push(item);
   }
@@ -1223,6 +1267,8 @@ function novaOS(){
  listaOS = []; indexAtivo = -1; limparCamposTela();
  localStorage.removeItem(STORAGE_KEY);
  localStorage.removeItem(STORAGE_KEY_ANTIGO);
+ localStorage.removeItem(STATUS_STORAGE_KEY);
+ idbDelete(DB_STORE_PDFS, DB_STATE_KEY);
  atualizarSelector(); renderFotos(); renderCentral();
 }
 </script>
